@@ -1,0 +1,35 @@
+diff --git a/src/xApp/sync_ui.c b/src/xApp/sync_ui.c
+--- a/src/xApp/sync_ui.c
++++ b/src/xApp/sync_ui.c
+@@ -64,25 +64,27 @@
+ void cond_wait_sync_ui(sync_ui_t* s, uint32_t wait_ms)
+ {
+   assert(s != NULL);
+   assert(wait_ms > 0);
+ 
+   pthread_mutex_lock(&s->mtx_sync);
+ 
+-  s->flag_sync = false;
+-  s->msg_ack = false;
++  // Preserve an ACK that arrived after send but before this wait.
++  // Each wait consumes its predicate under the mutex before returning.
+   struct timespec ts = {0};
+   int rc = clock_gettime(CLOCK_REALTIME, &ts);
+   assert(rc == 0);
+   ts.tv_sec += wait_ms/1000 + 1;
+ 
+   while(s->flag_sync == false && rc == 0) {
+     rc = pthread_cond_timedwait(&s->cv_sync, &s->mtx_sync, &ts);
+   }
+ 
+   assert(rc != ETIMEDOUT && "Timeout. No response from the E2 Node received, and neither from epoll. Unforeseen path");
+   assert(rc == 0);
+ 
++  // Consume this ACK only after it has satisfied the current request.
++  assert(s->msg_ack == true && "No response to subscription from the RIC received\n" );
++  s->flag_sync = false;
++  s->msg_ack = false;
+   pthread_mutex_unlock(&s->mtx_sync);
+-
+-  assert(s->msg_ack == true && "No response to subscription from the RIC received\n" );
+ }

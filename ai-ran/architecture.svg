@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="680" viewBox="0 0 1180 680" role="img" aria-labelledby="title desc">
+  <title id="title">Exploring the AI-RAN topology</title>
+  <desc id="desc">Two software UEs connect through an RFsim gNB to separate UPFs and an external data network. Each UPF performs inference and sends counts to an xApp. The xApp uses FlexRIC E42 and E2 control for slicing and a separate telnet path for release.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
+  <style>text{font-family:Arial,sans-serif;fill:#172338;font-size:14px}.heading{font-size:18px;font-weight:bold}.small{font-size:12px}.edge{fill:none;stroke-width:2;marker-end:url(#arrow)}.box{stroke-width:1.5;rx:10}</style>
+  <rect width="1180" height="680" fill="white"/>
+  <text x="590" y="28" text-anchor="middle" class="heading">Exploring the AI-RAN — single-node RFsim</text>
+  <rect x="30" y="65" width="180" height="80" class="box" fill="#eef3fa" stroke="#51789f"/>
+  <text x="120" y="94" text-anchor="middle" class="heading">UE1</text><text x="120" y="120" text-anchor="middle">12.2.1.2 · namespace ue1</text>
+  <rect x="30" y="225" width="180" height="80" class="box" fill="#eef3fa" stroke="#51789f"/>
+  <text x="120" y="254" text-anchor="middle" class="heading">UE2</text><text x="120" y="280" text-anchor="middle">12.1.1.130 · namespace ue2</text>
+  <rect x="290" y="125" width="200" height="145" class="box" fill="#e1effa" stroke="#0072b2"/>
+  <text x="390" y="155" text-anchor="middle" class="heading">OAI gNB + E2 agent</text><text x="390" y="183" text-anchor="middle">ENFORCE</text>
+  <text x="390" y="207" text-anchor="middle">Downlink NVS slices</text><text x="390" y="231" text-anchor="middle">RRC connection state</text><text x="390" y="254" text-anchor="middle" class="small">192.168.70.1</text>
+  <path d="M210 105 L250 105 L290 165" class="edge" stroke="#51789f"/><path d="M210 265 L250 265 L290 220" class="edge" stroke="#51789f"/>
+  <text x="244" y="187" text-anchor="middle" class="small">RFsim IQ</text><text x="244" y="203" text-anchor="middle" class="small">TCP 4043</text>
+  <rect x="600" y="65" width="225" height="105" class="box" fill="#e7f4ee" stroke="#21805a"/>
+  <text x="712" y="94" text-anchor="middle" class="heading">UPF1 + detector</text><text x="712" y="120" text-anchor="middle">INFER: Random Forest</text><text x="712" y="146" text-anchor="middle" class="small">.142 · SST 1 / SD 1 · DNN oai</text>
+  <rect x="600" y="225" width="225" height="105" class="box" fill="#e7f4ee" stroke="#21805a"/>
+  <text x="712" y="254" text-anchor="middle" class="heading">UPF2 + detector</text><text x="712" y="280" text-anchor="middle">INFER: Random Forest</text><text x="712" y="306" text-anchor="middle" class="small">.143 · SST 1 / SD 5 · DNN oai2</text>
+  <path d="M490 165 L600 125" class="edge" stroke="#0072b2"/><path d="M490 225 L600 265" class="edge" stroke="#0072b2"/>
+  <text x="546" y="195" text-anchor="middle" class="small">N3 / GTP-U</text><text x="546" y="211" text-anchor="middle" class="small">UDP 2152</text>
+  <rect x="970" y="160" width="185" height="95" class="box" fill="#f4f4f4" stroke="#727272"/>
+  <text x="1062" y="191" text-anchor="middle" class="heading">External DN</text><text x="1062" y="220" text-anchor="middle">192.168.70.145</text>
+  <path d="M825 120 L970 180" class="edge" stroke="#727272"/><path d="M825 275 L970 235" class="edge" stroke="#727272"/>
+  <text x="910" y="209" text-anchor="middle" class="small">N6 / IP</text>
+  <rect x="600" y="375" width="225" height="70" class="box" fill="#f5f6f8" stroke="#727272"/>
+  <text x="712" y="402" text-anchor="middle" class="heading">5G core control plane</text><text x="712" y="428" text-anchor="middle" class="small">AMF, SMFs, NRF, AUSF, UDM, UDR</text>
+  <path d="M390 270 L390 410 L600 410" class="edge" stroke="#727272"/>
+  <text x="492" y="393" text-anchor="middle" class="small">N2 / NGAP · SCTP 38412</text>
+  <rect x="360" y="525" width="235" height="80" class="box" fill="#edf0f5" stroke="#51789f"/>
+  <text x="477" y="554" text-anchor="middle" class="heading">FlexRIC near-RT RIC</text><text x="477" y="582" text-anchor="middle">Routes E2 control messages</text>
+  <rect x="790" y="525" width="270" height="80" class="box" fill="#f0eafa" stroke="#7954a1"/>
+  <text x="925" y="554" text-anchor="middle" class="heading">Control xApp</text><text x="925" y="582" text-anchor="middle">DECIDE: count-based policy</text>
+  <path d="M790 565 L595 565" class="edge" stroke="#7954a1"/><text x="692" y="545" text-anchor="middle" class="small">E42 · SCTP 36422</text>
+  <path d="M477 525 L477 465 L535 465 L535 290 L470 270" class="edge" stroke="#0072b2"/>
+  <text x="475" y="496" text-anchor="middle" class="small">E2AP / E2SM-RC · SCTP 36421</text>
+  <path d="M825 90 L875 90 L875 490 L925 490 L925 525" class="edge" stroke="#21805a"/>
+  <path d="M825 295 L875 295" fill="none" stroke="#21805a" stroke-width="2"/>
+  <text x="984" y="393" text-anchor="middle" class="small">Classification counts</text><text x="984" y="413" text-anchor="middle" class="small">Custom TCP 8080</text>
+  <path d="M925 605 L925 643 L255 643 L255 245 L290 245" class="edge" stroke="#b54135"/>
+  <text x="590" y="663" text-anchor="middle" class="small">Separate xApp → gNB release request: telnet / TCP 9090 (not E2)</text>
+</svg>

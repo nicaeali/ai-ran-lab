@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+.vscode/
+.ipynb_checkpoints/
+powder/artifacts/
+*.pcap
+*.pcapng
+*.log

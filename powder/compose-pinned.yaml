@@ -1,0 +1,26 @@
+# Image digests observed in the verified POWDER run. Use with the base Compose file.
+services:
+  mysql:
+    image: mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+  oai_amf:
+    image: oaisoftwarealliance/oai-amf@sha256:7e588f0fbfa723c6891f2f48da2ff09142723a97e053c415f2e6517c3d074cd9
+  oai_ausf:
+    image: oaisoftwarealliance/oai-ausf@sha256:e4f211d9cc88a53274a5c04d89315ba8c44f661de6125b27796baec964e21c2c
+  oai_udm:
+    image: oaisoftwarealliance/oai-udm@sha256:5361ca3c9a5b1420c7d4651ed83d2d5782eba58fc7b3fde3c45761b86670acde
+  oai_udr:
+    image: oaisoftwarealliance/oai-udr@sha256:1571393477abf6241d4f2a8949cabaaadec596c2f8ff76ceba18365671652656
+  oai-nssf:
+    image: oaisoftwarealliance/oai-nssf@sha256:53cdabbce16ee9ef5aea814088520e560a44978c065d58d5d877efec6847028e
+  oai_nrf_slice12:
+    image: oaisoftwarealliance/oai-nrf@sha256:8d561faf9a132d4ebcdb3738a72911f6613b3daf90f284a9fa1149cc99fc63d7
+  oai_smf_slice1:
+    image: oaisoftwarealliance/oai-smf@sha256:fd533bc2c0964fcd73e4c44f931d5a7a3673c14fd5f7f997a851f8536e3d9561
+  oai_smf_slice2:
+    image: oaisoftwarealliance/oai-smf@sha256:fd533bc2c0964fcd73e4c44f931d5a7a3673c14fd5f7f997a851f8536e3d9561
+  oai_upf_slice1:
+    image: ttsourdinis/custom-upf@sha256:2d70f13999317c3502aa968229d099772ff4307babfeda34b9f3b50568f9fbc9
+  oai_upf_slice2:
+    image: ttsourdinis/custom-upf@sha256:8254e9b557c43c07e16a35fdd7b0b14ebd63174c867190cdf31d4cae1f959280
+  oai_ext_dn:
+    image: oaisoftwarealliance/trf-gen-cn5g@sha256:3f9ab2e401d2a010b568e78db087b5d1526b8756f1056087939116f6138340a6
