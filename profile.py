@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Exploring the AI-RAN
 
 One d430 running an OAI RFsim RAN, two software UEs, a sliced 5G core,
@@ -15,11 +16,11 @@ This is a repository-based profile: the repository must contain this root
 profile.py and ai-ran/setup.sh. No radio-frequency reservation is needed.
 
 References:
-- T. Tsourdinis, N. Makris, T. Korakis, and S. Fdida, “AI-Driven
+- T. Tsourdinis, N. Makris, T. Korakis, and S. Fdida, "AI-Driven
 Network Intrusion Detection and Resource Allocation in Real-World
-O-RAN 5G Networks,” in Proceedings of the 30th Annual
+O-RAN 5G Networks," in Proceedings of the 30th Annual
 International Conference on Mobile Computing and Networking, pp.
-1842–1849, 2024.
+1842-1849, 2024.
 - https://github.com/teo-tsou/oai-anomaly-detection/
 """
 
