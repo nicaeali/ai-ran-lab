@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1180" height="680" viewBox="0 0 1180 680" role="img" aria-labelledby="title desc">
   <title id="title">Exploring the AI-RAN topology</title>
-  <desc id="desc">Two software UEs connect through an RFsim gNB to separate UPFs and an external data network. Each UPF performs inference and sends counts to an xApp. The xApp uses FlexRIC E42 and E2 control for slicing and a separate telnet path for release.</desc>
+   <desc id="desc">Two software UEs connect through an RFsim gNB to separate UPFs and an external data network. Each UPF classifies traffic using the Random Forest or the weaker byte heuristic and sends counts to an xApp. The xApp uses FlexRIC E42 and E2 control for slicing and a separate telnet path for release.</desc>
   <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
   <style>text{font-family:Arial,sans-serif;fill:#172338;font-size:14px}.heading{font-size:18px;font-weight:bold}.small{font-size:12px}.edge{fill:none;stroke-width:2;marker-end:url(#arrow)}.box{stroke-width:1.5;rx:10}</style>
   <rect width="1180" height="680" fill="white"/>
@@ -15,9 +15,9 @@
   <path d="M210 105 L250 105 L290 165" class="edge" stroke="#51789f"/><path d="M210 265 L250 265 L290 220" class="edge" stroke="#51789f"/>
   <text x="244" y="187" text-anchor="middle" class="small">RFsim IQ</text><text x="244" y="203" text-anchor="middle" class="small">TCP 4043</text>
   <rect x="600" y="65" width="225" height="105" class="box" fill="#e7f4ee" stroke="#21805a"/>
-  <text x="712" y="94" text-anchor="middle" class="heading">UPF1 + detector</text><text x="712" y="120" text-anchor="middle">INFER: Random Forest</text><text x="712" y="146" text-anchor="middle" class="small">.142 · SST 1 / SD 1 · DNN oai</text>
+  <text x="712" y="94" text-anchor="middle" class="heading">UPF1 + detector</text><text x="712" y="120" text-anchor="middle">RF or weak byte heuristic</text><text x="712" y="146" text-anchor="middle" class="small">.142 · SST 1 / SD 1 · DNN oai</text>
   <rect x="600" y="225" width="225" height="105" class="box" fill="#e7f4ee" stroke="#21805a"/>
-  <text x="712" y="254" text-anchor="middle" class="heading">UPF2 + detector</text><text x="712" y="280" text-anchor="middle">INFER: Random Forest</text><text x="712" y="306" text-anchor="middle" class="small">.143 · SST 1 / SD 5 · DNN oai2</text>
+  <text x="712" y="254" text-anchor="middle" class="heading">UPF2 + detector</text><text x="712" y="280" text-anchor="middle">RF or weak byte heuristic</text><text x="712" y="306" text-anchor="middle" class="small">.143 · SST 1 / SD 5 · DNN oai2</text>
   <path d="M490 165 L600 125" class="edge" stroke="#0072b2"/><path d="M490 225 L600 265" class="edge" stroke="#0072b2"/>
   <text x="546" y="195" text-anchor="middle" class="small">N3 / GTP-U</text><text x="546" y="211" text-anchor="middle" class="small">UDP 2152</text>
   <rect x="970" y="160" width="185" height="95" class="box" fill="#f4f4f4" stroke="#727272"/>

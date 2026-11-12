@@ -2,11 +2,13 @@
 """Fixed Ubuntu 22.04 preparation for the repository-backed AI-RAN profile."""
 
 from datetime import datetime, timezone
+import grp
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
+import pwd
 import shlex
 import shutil
 import subprocess
@@ -135,10 +137,34 @@ def install_packages():
     Path("/etc/apt/apt.conf.d/99-ai-ran").write_text('Acquire::ForceIPv4 "true";\nAcquire::Retries "3";\n')
     run(["debconf-set-selections"], input_text="wireshark-common wireshark-common/install-setuid boolean false\n")
     run(["apt-get", "update"])
-    packages = "build-essential gcc-12 g++-12 cmake ninja-build ccache pkg-config autoconf automake libtool bison flex patch libsctp-dev libpcre2-dev libsqlite3-dev libssl-dev libatlas-base-dev libblas-dev liblapack-dev liblapacke-dev libreadline-dev libconfig-dev zlib1g-dev openssl xxd git rsync curl wget ca-certificates python3-dev python3-pip python3-venv tmux netcat-openbsd tcpdump tshark iproute2 iptables iputils-ping hping3 docker.io docker-compose-v2".split()
+    packages = "build-essential gcc-12 g++-12 cmake ninja-build ccache pkg-config autoconf automake libtool bison flex patch libsctp-dev libpcre2-dev libsqlite3-dev libssl-dev libatlas-base-dev libblas-dev liblapack-dev liblapacke-dev libreadline-dev libconfig-dev zlib1g-dev openssl xxd git rsync curl wget ca-certificates python3-dev python3-pip python3-venv tmux netcat-openbsd tcpdump tshark iproute2 iptables iputils-ping hping3 iperf3 docker.io docker-compose-v2".split()
     run(["apt-get", "install", "-y", *packages])
     run(["systemctl", "enable", "--now", "docker"])
     return mirror
+
+
+def configure_docker_access():
+    # POWDER startup may run directly as root with no SUDO_USER. Discover the
+    # provisioned login accounts instead of adding the setup process's user.
+    shells = {"sh", "bash", "dash", "zsh", "ksh", "csh", "tcsh", "fish"}
+    users = sorted((account for account in pwd.getpwall()
+                    if 1000 <= account.pw_uid < 65534
+                    and account.pw_dir.startswith(("/users/", "/home/"))
+                    and Path(account.pw_shell).name in shells), key=lambda account: account.pw_name)
+    if not users:
+        raise RuntimeError("No regular login accounts found for Docker access; provision the POWDER accounts before setup")
+    run(["groupadd", "-f", "docker"])
+    docker_gid = grp.getgrnam("docker").gr_gid
+    for account in users:
+        if docker_gid not in os.getgrouplist(account.pw_name, account.pw_gid):
+            run(["usermod", "-aG", "docker", account.pw_name])
+        # runuser loads the new supplementary groups without requiring an SSH
+        # reconnect for this check. Existing student sessions must reconnect.
+        run(["runuser", "-u", account.pw_name, "--", "docker", "info", "--format", "{{.ServerVersion}}"], capture=True)
+    names = [account.pw_name for account in users]
+    print("Docker access enabled for: " + ", ".join(names), flush=True)
+    print("Reconnect SSH sessions opened before setup completed to load Docker group membership.", flush=True)
+    return names
 
 
 def copy_lab_source():
@@ -166,6 +192,7 @@ def prepare():
         raise RuntimeError("Stop active radio/controller actors before preparation:\n" + active.stdout)
     ready.unlink(missing_ok=True)
     mirror = install_packages()
+    docker_users = configure_docker_access()
     copy_lab_source()
     clone_pinned(FLEXRIC, "https://gitlab.eurecom.fr/mosaic5g/flexric.git", PINS["flexric"])
     clone_pinned(OAI, "https://gitlab.eurecom.fr/oai/openairinterface5g.git", PINS["oai"])
@@ -238,6 +265,7 @@ def prepare():
 
     run(["python3", "-m", "venv", LAB / "venv"])
     run([LAB / "venv/bin/python", "-m", "pip", "install", "-r", REPO / "requirements-powder.txt"])
+    run([LAB / "venv/bin/python", "-m", "pip", "install", "-r", REPO / "requirements-comparison.txt"])
     run([LAB / "venv/bin/python", "-m", "pip", "check"])
     run([LAB / "venv/bin/python", REPO / "powder/evaluate-saved-model.py"])
     compose = ["docker", "compose", "--project-name", "slicing-cn", "-f",
@@ -260,18 +288,12 @@ def prepare():
     if text.count('/usr/local/lib/flexric/') != 1:
         raise RuntimeError("Unexpected gNB plugin-directory template")
     (LAB / "etc/gnb.conf").write_text(text.replace('/usr/local/lib/flexric/', '/opt/ai-ran/lib/flexric/'))
-    for executable, action in COMMANDS.items():
-        script = LAB / "bin" / executable
-        script.write_text(f"#!/bin/sh\nset -eu\nexec /usr/bin/python3 /opt/oai-anomaly-detection/ai-ran/lab.py {action}\n")
-        script.chmod(0o755)
+    install_entrypoints()
     for name in ("ai_ran_decode_e2", "ai_ran_decode_rc"):
         shutil.copy2(FLEXRIC / "build/examples/ai-ran-lab" / name, LAB / "bin" / name)
-    for name, target in (("inspect-control", "ai-ran/inspect-control.py"), ("evaluate-model", "powder/evaluate-saved-model.py")):
-        script = LAB / "bin" / name
-        script.write_text(f'#!/bin/sh\nset -eu\nexec /opt/ai-ran/venv/bin/python /opt/oai-anomaly-detection/{target} "$@"\n')
-        script.chmod(0o755)
     manifest = {"prepared_utc": datetime.now(timezone.utc).isoformat(), "pins": PINS,
                 "ubuntu_package_mirror": mirror,
+                "docker_users": docker_users,
                 "lab_source_directory": str(SOURCE), "lab_git_head": run(["git", "-C", REPO, "rev-parse", "HEAD"], capture=True),
                 "installed_packages": run(["dpkg-query", "-W"], capture=True),
                 "python_packages": run([LAB / "venv/bin/python", "-m", "pip", "freeze"], capture=True),
@@ -279,8 +301,23 @@ def prepare():
                            for p in sorted((REPO / "ai-ran").rglob("*")) if p.is_file() and "__pycache__" not in p.parts}}
     (LAB / "setup-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (LOGS / "setup-failure.txt").unlink(missing_ok=True)
-    ready.write_text("Prepared: " + manifest["prepared_utc"] + "\nActors are stopped. Follow docs/EXPLORING_AI_RAN.md.\n")
+    ready.write_text("Prepared: " + manifest["prepared_utc"] + "\nActors are stopped. Follow docs/EXPLORING_AI_RAN.md.\n"
+                     "Docker users: " + ", ".join(docker_users) + "\nReconnect SSH sessions opened before setup completed.\n")
     print("READY: Exploring the AI-RAN preparation finished. Network actors have not been started.", flush=True)
+
+
+def install_entrypoints():
+    (LAB / "bin").mkdir(parents=True, exist_ok=True)
+    for executable, action in COMMANDS.items():
+        script = LAB / "bin" / executable
+        script.write_text(f"#!/bin/sh\nset -eu\nexec /usr/bin/python3 /opt/oai-anomaly-detection/ai-ran/lab.py {action}\n")
+        script.chmod(0o755)
+    targets = {"inspect-control": "ai-ran/inspect-control.py", "evaluate-model": "powder/evaluate-saved-model.py",
+               "compare-models": "ai-ran/compare-models.py", "run-comparison": "ai-ran/compare-detectors.py"}
+    for name, target in targets.items():
+        script = LAB / "bin" / name
+        script.write_text(f'#!/bin/sh\nset -eu\nexec /opt/ai-ran/venv/bin/python /opt/oai-anomaly-detection/{target} "$@"\n')
+        script.chmod(0o755)
 
 
 if __name__ == "__main__":

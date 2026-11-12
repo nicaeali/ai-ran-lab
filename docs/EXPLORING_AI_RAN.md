@@ -1,4 +1,4 @@
-# Exploring the AI-RAN
+# Exploring the AI-RAN: AI versus a weaker heuristic
 
 In this experiment, you will bring up an end-to-end 5G network and follow an
 AI-assisted control loop. You will observe:
@@ -8,6 +8,14 @@ AI-assisted control loop. You will observe:
 - how anomaly detectors in the UPFs send traffic classifications to the xApp;
 - how the xApp changes RAN slice resources and requests a UE release;
 - how packet captures and endpoint logs together establish what happened.
+- how AI and a deliberately weaker heuristic affect legitimate-user throughput,
+  latency, and UPF container CPU utilization, with supplementary memory measurements.
+
+**The main experiment is the AI-versus-heuristic comparison.** The initial
+connection/capture exercises establish how the system works. You will then
+compare classifiers offline and run matched live trials with automatic
+measurement and plots. A working AI control loop alone does not answer the
+comparison question.
 
 The experiment uses one POWDER d430 server and simulated RF links. Reserve the
 server in advance and complete the exercises during that reservation.
@@ -45,6 +53,34 @@ The detector socket is not a standardized A1/O2 implementation. RRC release is
 not carried in the E2 control message in this prototype. The xApp is control-only;
 do not assume it establishes a KPM/RC indication subscription.
 
+### How the attack, xApp, and weaker heuristic work
+
+**DoS workload.** UE1 is the traffic source under test; UE2 carries legitimate
+traffic. The introductory low-rate SYN command makes the control loop easy to
+inspect. The later performance comparison uses a bounded SYN packet flood:
+UE1 sends zero-payload TCP SYN packets toward the lab DN on port 333 at a
+requested 10,000 packets/s. This creates traffic and processing pressure on the
+shared radio/core path. We measure whether UE2's goodput and responsiveness
+degrade; we do not assume that this closed-port workload exhausts a server's
+TCP connection backlog. Requested sending rate and achieved rate can differ.
+
+**xApp policy.** Each UPF reports counts of normal/anomalous classifications.
+The xApp converts these ratios into nominal slice allocations, rescales if the
+sum exceeds 100, and applies decreases before increases. A fully anomalous
+30-packet window can trigger a UE release through the separate telnet path.
+The same xApp policy is used in both comparison arms.
+
+**Weaker heuristic.** The fixed rule labels a record anomalous when
+`src_bytes + dst_bytes <= 28`. The cutoff was calibrated on training records
+before testing. In the live comparison it reports **at most once every ten
+seconds**, starting with its first complete window, while RF reports every
+computed window. Both use 30-packet windows advancing by ten packets. This
+intentionally weaker baseline combines a simple rule with slower reporting:
+the live comparison measures the whole detection/reporting pipeline, not just
+the benefit of ML inference. The live extractor sets `dst_bytes = src_bytes`,
+so the rule also flags ordinary small/empty packets such as TCP ACKs; the clean
+controls expose that tradeoff. Do not tune the rule or omit unfavorable trials.
+
 ## Run the experiment
 
 ### Reserve and instantiate
@@ -64,6 +100,14 @@ Use the portal's SSH command. Confirm preparation:
 cat /opt/ai-ran/READY
 ```
 
+Setup adds the node's existing regular login accounts to the `docker` group.
+If you opened an SSH session before preparation finished, disconnect and
+reconnect that session to load its new group membership. Verify Docker access:
+
+```bash
+docker info --format '{{.ServerVersion}}'
+```
+
 The lab uses fixed scripts with no student-selectable arguments. They start
 background actors and return after readiness checks. Use **three SSH sessions**:
 terminal 1 and terminal 2 for captures/logs, and terminal 3 for startup/traffic.
@@ -75,7 +119,7 @@ In terminal 3:
 
 ```bash
 sudo /opt/ai-ran/bin/start-core
-sudo docker ps
+docker ps
 ```
 
 Expect twelve running, healthy containers. The custom UPFs already contain the
@@ -327,7 +371,7 @@ also help correlate the loop:
 
 ```bash
 date -Is
-sudo docker exec oai-upf-slice1 date -Is
+docker exec oai-upf-slice1 date -Is
 ```
 
 Check endpoint state and connectivity:
@@ -356,19 +400,101 @@ why a remaining TUN IP does not prove an active radio connection, and why
 nominal quotas are not throughput measurements. If an expected event is absent,
 report that absence and use the captures/logs to locate where the chain stopped.
 
-### Inspect the saved model and distinguish inference from training
+### Compare AI and the heuristic on held-out records
 
 ```bash
-/opt/ai-ran/bin/evaluate-model
+/opt/ai-ran/bin/compare-models
 ```
 
-This evaluates the supplied artifacts on 22,544 offline records without
-retraining. It should reproduce approximately 82.25% accuracy.
+This evaluates the unchanged RF and the fixed byte rule on the same 22,544
+held-out records, without retraining or using the test labels to select the
+threshold. It prints both confusion matrices, accuracy, balanced accuracy,
+attack precision/recall/F1, and normal false-positive rate. The ten-second
+reporting delay has no effect on these offline predictions.
 
 **Lab report:** name the five features and the component performing inference.
 Explain why this offline accuracy is not a measured live-packet accuracy, and
 why changing quotas does not mean the model learned online. Identify one
-limitation of feature extraction or the two-client controller.
+limitation of feature extraction or the two-client controller. Compare both
+methods on every reported metric: does the better method depend on the metric?
+
+### Main experiment: compare throughput, latency, and utilization
+
+Stop the manual captures and retain their files. Run the fixed paired experiment:
+
+```bash
+sudo /opt/ai-ran/bin/run-comparison
+```
+
+Allow approximately 30–45 minutes, including repeated startup and measurement.
+The runner preserves the preceding evidence, then resets the DN, core, radio,
+xApp, and detector state for each trial. It runs one clean control per method
+and three attack pairs in alternating order: RF/heuristic, heuristic/RF,
+RF/heuristic. All outcomes are retained, including unintended releases,
+incomplete measurements, no mitigation, and runtime faults.
+
+| Setting | Fixed value |
+| --- | --- |
+| Measurement workload | 50 seconds, two TCP downlink streams capped at 100 Mbit/s each |
+| Throughput source | Actual receiver-side iperf3 intervals in each UE namespace |
+| Latency/loss | UE2 ICMP probes every 0.2 seconds |
+| Attack trials | Same bounded UE1 SYN workload, beginning near t=15 s |
+| Clean trials | Identical legitimate workload, no attack |
+| Main comparison window | [15,48) seconds; includes the response period |
+| Additional windows | Baseline [5,15), post-event [20,48), late [25,48) seconds |
+| Detector difference | RF every window versus fixed byte rule with ten-second reporting |
+| Utilization (paper Figure 7 metric) | CPU time of each complete UPF Docker container, including its detector |
+| Supplementary compute measurements | Host/process CPU counters, container memory, and detector RSS |
+
+The comparison workload is intentionally distinct from the earlier low-rate
+packet walkthrough. That walkthrough does not substitute for an RF performance
+trial, since it did not run the same throughput load and measurement schedule.
+
+When the runner finishes, read its table:
+
+```bash
+less /var/tmp/ai-ran/state/comparison.md
+```
+
+It prints the timestamped evidence directory under `/var/tmp/ai-ran/captures/`.
+That directory contains `comparison.md`, `summary.csv`, `campaign.json`, raw
+per-trial data/captures/logs, and PNG/SVG plots for throughput, latency, UPF CPU
+utilization, and detector memory. Export the bundle below and
+open the plots on your laptop. The runner leaves the network stopped.
+
+#### Interpret utilization correctly
+
+- **Paper alignment:** Figure 7 measures CPU utilization of a UPF Docker
+  container. We measure that resource, including the UPF and detector processes,
+  for both UPFs. Our two conditions are AI and a weaker heuristic; the paper's
+  conditions are defense enabled/disabled. This is a metric-aligned extension,
+  not an exact replication of its numerical results.
+- **Container CPU:** consecutive cgroup CPU-time counters divided by elapsed
+  wall time give utilization. One fully busy logical CPU is 100%, matching
+  Docker's Linux convention; a multithreaded container can exceed 100%. The
+  paper does not specify its normalization. CPU utilization is not a direct
+  power or energy measurement.
+- **Quotas:** E2 PRB values are configured allocation policies, not the CPU
+  utilization metric. Actual physical radio occupancy is outside this comparison.
+- **CPU:** host CPU is a percentage of the whole machine; each process is a
+  percentage of one logical CPU. The two detector CPU values are summed and
+  may exceed 100%. This measures capture/extraction/classification/logging and
+  reporting overhead together, not inference alone.
+- **Memory:** host usage is `MemTotal - MemAvailable`; container cgroup memory
+  includes cache; detector memory sums their resident sets. Shared pages may be
+  counted twice in that sum.
+- **Missing values:** NA or gaps mean missing measurements, not zero load or
+  zero latency. RTT describes received replies; always also report packet loss.
+
+**Lab report:** present side-by-side throughput, RTT/loss, UPF CPU utilization,
+and supplementary memory plots. Include all three pairs, clean controls, coverage flags,
+and unintended releases. Use actual attack-onset events when discussing release
+delay; time since capture start is not detection latency. Explain whether AI's
+advantages justify its compute cost, and whether differences come from the rule,
+reporting cadence, or control policy. Higher utilization is not automatically
+better: relate it to useful UE2 goodput and latency. Report ties and heuristic
+wins as well as AI wins. Three pairs are descriptive observations, not a
+statistical guarantee of superiority.
 
 ### Export and stop
 
@@ -395,8 +521,9 @@ will overwrite that capture, so export evidence before repeating it.
 ## Submit
 
 Submit your annotated architecture, connection sequences, inference/control
-evidence chain, interpretation answers, source/profile revision, packet captures,
-and relevant logs. Distinguish directly decoded messages, endpoint observations,
+evidence chain, offline classifier table, live AI-versus-heuristic comparisons
+of throughput/latency/utilization, interpretation answers, source/profile revision,
+packet captures, and relevant logs. Distinguish directly decoded messages, endpoint observations,
 and conclusions. This is a single-node RFsim exploration, not an OTA or
 production-security validation.
 

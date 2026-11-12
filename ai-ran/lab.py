@@ -11,6 +11,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -109,7 +110,7 @@ def core():
     existing = run(["pgrep", "-af", r"(^|/)(nr-softmodem|nr-uesoftmodem|nearRT-RIC|xapp_rc_slice_ctrl)( |$)"], check=False, capture=True)
     if existing.returncode == 0:
         raise RuntimeError("Existing radio/controller actors must be stopped in their owning runtime first:\n" + existing.stdout)
-    record(core=True, actors=[], attack_run=False)
+    record(core=True, actors=[], attack_run=False, detector=None)
     run(COMPOSE + ["up", "-d", "mysql", "oai_ext_dn"])
     run(COMPOSE + ["stop", "oai_nrf_slice12", *NFS])
     run(COMPOSE + ["up", "-d", "--no-deps", "--force-recreate", "oai_nrf_slice12"])
@@ -167,11 +168,21 @@ def xapp():
     wait_for("xApp E42 connection; awaiting detector clients", lambda: contains("xapp", "Waiting for incoming connections"))
 
 
-def detectors():
+def detectors(detector="rf"):
     need("xapp")
+    if detector not in ("rf", "byte-periodic"):
+        raise RuntimeError("Unknown classroom detector")
+    if any(session(f"ads{number}") for number in (1, 2)):
+        raise RuntimeError("Detectors are already connected; use a fresh staged startup to change methods")
+    record(detector=detector)
     for number in (1, 2):
+        command = [f"anomaly-detection-server-slice{number}.py"]
+        if detector == "byte-periodic":
+            run(["docker", "cp", REPO / "powder/byte-heuristic-detector.py",
+                 f"oai-upf-slice{number}:/app/byte-heuristic-detector.py"])
+            command = ["byte-heuristic-detector.py", "--slice", str(number), "--report-interval", "10"]
         spawn(f"ads{number}", ["docker", "exec", "-w", "/app", f"oai-upf-slice{number}", "python3", "-u",
-                               f"anomaly-detection-server-slice{number}.py"])
+                               *command])
         wait_for(f"detector {number} TCP connection", lambda: contains("xapp", f"Connection accepted from client {number}"))
     wait_for("initial slice-control acknowledgment", lambda: contains("xapp", "RC initialization completed"))
 
@@ -230,9 +241,11 @@ def stop():
         if f"ads{number}" in current["actors"]:
             run(["docker", "exec", f"oai-upf-slice{number}", "pkill", "-f",
                  f"^python3.*anomaly-detection-server-slice{number}[.]py$"], check=False, capture=True)
+            run(["docker", "exec", f"oai-upf-slice{number}", "pkill", "-f",
+                 "^python3.*byte-heuristic-detector[.]py( |$)"], check=False, capture=True)
     if current["core"]:
         run(COMPOSE + ["stop"])
-    record(core=False, actors=[], attack_run=False)
+    record(core=False, actors=[], attack_run=False, detector=None)
     print("Stopped this lab's actors/core. Captures and logs are retained.")
 
 
@@ -247,7 +260,18 @@ def export_results():
     folder = Path("/var/tmp/ai-ran/exports")
     folder.mkdir(exist_ok=True)
     archive = folder / ("ai-ran-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ") + ".tar.gz")
-    run(["tar", "-czf", archive, "-C", "/", "var/tmp/ai-ran/captures", "var/log/ai-ran", "opt/ai-ran/setup-manifest.json"])
+    # Actor logs may still grow. Archive stable copies to avoid tar's
+    # "file changed as we read it" failure during the student's export step.
+    with tempfile.TemporaryDirectory(prefix="snapshot-", dir=folder) as temporary:
+        snapshot = Path(temporary)
+        for source in (Path("/var/tmp/ai-ran/captures"), LOGS):
+            shutil.copytree(source, snapshot / source.relative_to("/"))
+        metadata = snapshot / "opt/ai-ran"
+        metadata.mkdir(parents=True)
+        for name in ("setup-manifest.json", "runtime-update.json"):
+            if (LAB / name).exists():
+                shutil.copy2(LAB / name, metadata / name)
+        run(["tar", "-czf", archive, "-C", snapshot, "var", "opt"])
     archive.chmod(0o644)
     account = os.environ.get("SUDO_USER", "root")
     print("Run on your laptop (using your portal's SSH host if its alias differs):")
@@ -256,7 +280,8 @@ def export_results():
 
 def main():
     actions = {"core": core, "ric": ric, "gnb": gnb, "ue1": lambda: ue(1), "ue2": lambda: ue(2),
-               "xapp": xapp, "detectors": detectors, "normal": traffic, "attack": lambda: traffic(True),
+               "xapp": xapp, "detectors": detectors, "heuristic": lambda: detectors("byte-periodic"),
+               "normal": traffic, "attack": lambda: traffic(True),
                "stop": stop, "status": status, "export": export_results}
     if len(sys.argv) != 2 or sys.argv[1] not in actions:
         raise SystemExit("Use the fixed entry points in /opt/ai-ran/bin")

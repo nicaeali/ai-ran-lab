@@ -10,6 +10,10 @@
 4. Before class, instantiate the published revision on a fresh d430 and complete
    the [student procedure](../docs/EXPLORING_AI_RAN.md).
 
+After a repository update, push the commit and refresh the POWDER profile to
+that revision before instantiating. Rebooting an existing node does not fetch
+new GitHub commits.
+
 POWDER places the source at `/local/repository`. The profile automatically runs:
 
 ```bash
@@ -20,6 +24,12 @@ Preparation has no arguments. It installs host packages and pinned Python
 dependencies, retrieves pinned OAI/FlexRIC/compiler/SIMDe sources, builds them,
 and pulls digest-pinned core images. Allow time for the initial compilation.
 Network actors are left stopped so their connection handshakes can be captured.
+
+Setup adds existing regular login accounts under `/users` or `/home` to the
+`docker` group and verifies Docker access as each account. This works when
+POWDER invokes startup as root. The account list is recorded in the setup
+manifest. Reconnect any SSH sessions opened before preparation finished so
+commands such as `docker ps` use the new group membership.
 
 ## Locations
 
@@ -45,6 +55,12 @@ dependency installation, and separate telnet libraries. The included patches
 address slice-control concurrency and control-acknowledgment ordering. This core
 configuration uses HTTP/1 SBI, explicit NRF addressing, and direct NRF SMF
 selection; NSSF is deployed but not used for that selection.
+
+The comparison runner measures receiver goodput, UE2 RTT/loss, and UPF-container
+CPU utilization, following the paper's Figure 7 resource metric. Container CPU
+uses cgroup counters; host/process CPU and memory are supplementary diagnostics.
+
+The profile installs these comparison tools automatically during startup.
 
 ## Operating the lab
 
