@@ -1,4 +1,4 @@
-# Exploring the AI-RAN: AI versus heuristic
+# Exploring the AI-RAN
 
 In this experiment, you will bring up an end-to-end 5G network and follow an
 AI-assisted control loop. You will observe:
