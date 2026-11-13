@@ -526,8 +526,6 @@ packet captures, and relevant logs. Distinguish directly decoded messages, endpo
 and conclusions. This is a single-node RFsim exploration, not an OTA or
 production-security validation.
 
-The workflow is inspired by Fraida Fund's
-[Exploring the 5G core network](https://witestlab.poly.edu/blog/exploring-the-5g-core-network/).
 The implementation builds on Tsourdinis et al.'s
 [AI-driven O-RAN experiment](https://doi.org/10.1145/3636534.3697311).
 Profile setup and operating notes are in [ai-ran/README.md](../ai-ran/README.md).
