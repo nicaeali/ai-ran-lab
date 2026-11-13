@@ -1,4 +1,4 @@
-# Exploring the AI-RAN: AI versus a weaker heuristic
+# Exploring the AI-RAN: AI versus heuristic
 
 In this experiment, you will bring up an end-to-end 5G network and follow an
 AI-assisted control loop. You will observe:
@@ -8,7 +8,7 @@ AI-assisted control loop. You will observe:
 - how anomaly detectors in the UPFs send traffic classifications to the xApp;
 - how the xApp changes RAN slice resources and requests a UE release;
 - how packet captures and endpoint logs together establish what happened.
-- how AI and a deliberately weaker heuristic affect legitimate-user throughput,
+- how AI and a heuristic affect legitimate-user throughput,
   latency, and UPF container CPU utilization, with supplementary memory measurements.
 
 **The main experiment is the AI-versus-heuristic comparison.** The initial
@@ -53,7 +53,7 @@ The detector socket is not a standardized A1/O2 implementation. RRC release is
 not carried in the E2 control message in this prototype. The xApp is control-only;
 do not assume it establishes a KPM/RC indication subscription.
 
-### How the attack, xApp, and weaker heuristic work
+### How the attack, xApp, and heuristic work
 
 **DoS workload.** UE1 is the traffic source under test; UE2 carries legitimate
 traffic. The introductory low-rate SYN command makes the control loop easy to
@@ -70,14 +70,13 @@ sum exceeds 100, and applies decreases before increases. A fully anomalous
 30-packet window can trigger a UE release through the separate telnet path.
 The same xApp policy is used in both comparison arms.
 
-**Weaker heuristic.** The fixed rule labels a record anomalous when
+**Heuristic.** The fixed rule labels a record anomalous when
 `src_bytes + dst_bytes <= 28`. The cutoff was calibrated on training records
 before testing. In the live comparison it reports **at most once every ten
 seconds**, starting with its first complete window, while RF reports every
-computed window. Both use 30-packet windows advancing by ten packets. This
-intentionally weaker baseline combines a simple rule with slower reporting:
-the live comparison measures the whole detection/reporting pipeline, not just
-the benefit of ML inference. The live extractor sets `dst_bytes = src_bytes`,
+computed window. Both use 30-packet windows advancing by ten packets. The
+classifiers and reporting cadences differ, so the live comparison evaluates
+the whole detection/reporting pipeline. The live extractor sets `dst_bytes = src_bytes`,
 so the rule also flags ordinary small/empty packets such as TCP ACKs; the clean
 controls expose that tradeoff. Do not tune the rule or omit unfavorable trials.
 
@@ -466,7 +465,7 @@ open the plots on your laptop. The runner leaves the network stopped.
 
 - **Paper alignment:** Figure 7 measures CPU utilization of a UPF Docker
   container. We measure that resource, including the UPF and detector processes,
-  for both UPFs. Our two conditions are AI and a weaker heuristic; the paper's
+  for both UPFs. Our two conditions are AI and a heuristic; the paper's
   conditions are defense enabled/disabled. This is a metric-aligned extension,
   not an exact replication of its numerical results.
 - **Container CPU:** consecutive cgroup CPU-time counters divided by elapsed

@@ -1,4 +1,4 @@
-# Exploring the AI-RAN: AI versus a weaker heuristic
+# Exploring the AI-RAN: AI versus heuristic
 
 A hands-on POWDER lab exploring an AI-assisted 5G RAN control loop: two software
 UEs, a sliced core, an OAI RFsim gNB, a FlexRIC near-RT RIC, and an xApp driven by
@@ -8,8 +8,8 @@ UPF anomaly detectors.
 capturing connections, decoding E2/E42 messages, inspecting detector reports,
 and tracing slice-resource changes and a UE release.
 
-The main experiment compares the saved Random Forest with a deliberately weaker
-byte-threshold detector using ten-second reports. Matched trials measure
+The main experiment compares the saved Random Forest with a byte-threshold
+heuristic using ten-second reports. Matched trials measure
 throughput, latency/loss, and UPF container CPU utilization (the paper's Figure 7
 metric), with supplementary memory measurements. CSV results and plots are
 generated from the student's own run.

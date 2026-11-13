@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fixed eight-trial RF versus weaker periodic-byte comparison; no student flags."""
+"""Fixed eight-trial RF versus periodic-byte heuristic comparison; no student flags."""
 
 from datetime import datetime, timezone
 import hashlib
@@ -184,7 +184,7 @@ def main():
     folder.mkdir()
     folder.chmod(0o1777)
     report = {"directory": str(folder), "trial_order": ORDER, "trials": [], "complete": False,
-              "design": "RF versus intentionally weaker byte threshold 28 with 10-second reporting; one clean control each and three alternating attack pairs",
+              "design": "RF versus byte-threshold heuristic (28 bytes, 10-second reporting); one clean control each and three alternating attack pairs",
               "scope": "End-to-end detector/reporting-policy comparison; reporting cadence also differs. All outcomes retained."}
     def save():
         (folder / "campaign.json").write_text(json.dumps(report, indent=2) + "\n")

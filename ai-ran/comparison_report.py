@@ -9,7 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-LABELS = {"rf": "Random Forest", "byte-periodic": "Weak byte rule (10 s reports)"}
+LABELS = {"rf": "Random Forest", "byte-periodic": "Heuristic (10 s reports)"}
 COLORS = {"rf": "#0072B2", "byte-periodic": "#D55E00"}
 
 
@@ -92,7 +92,7 @@ def plots(trials, directory):
                 ax.set_ylim(0, upper)
         for ax in axes[-1]:
             ax.set_xlabel("Seconds from measurement start")
-        fig.suptitle(title + ": AI versus intentionally weaker heuristic", fontsize=13)
+        fig.suptitle(title + ": AI versus heuristic", fontsize=13)
         fig.text(0.5, 0.005, "Dotted: attack onset. Dashed: release request (red = benign). Missing observations are not zero-filled.", ha="center")
         fig.tight_layout(rect=(0, 0.02, 1, 0.97))
         for extension in ("png", "svg"):
@@ -129,11 +129,11 @@ def plots(trials, directory):
 
 def write_report(campaign, folder):
     rows = [summary_row(trial) for trial in campaign["trials"]]
-    text = ["# AI versus weaker heuristic: measured comparison", "", campaign["design"], "", campaign["scope"], "",
+    text = ["# AI versus heuristic: measured comparison", "", campaign["design"], "", campaign["scope"], "",
             f"Complete: **{campaign['complete']}**. Recorded trials: **{len(rows)}/8**.",
             f"Evidence directory: `{folder}`.", "",
             "The heuristic classifies low-byte packets using cutoff 28 and reports at most every 10 seconds. RF reports every window.",
-            "Both use the original extractor, 30-packet windows, 10-packet steps, controller, and workloads. This deliberately includes a reporting-cadence disadvantage.", "",
+            "Both use the original extractor, 30-packet windows, 10-packet steps, controller, and workloads. Reporting cadence differs between the two methods.", "",
             "Impact means use [15,48) s for both clean and attack trials; this includes the attack response period. Baseline [5,15), post-event [20,48), and late [25,48) metrics remain in each summary.json.",
             "Ping loss covers the whole trial. RTT is measured on received replies. Release delay is command launch to captured release request, not inference time or completed RRC release.", "",
             "## Throughput, latency, and UPF CPU utilization", "",
@@ -149,7 +149,7 @@ def write_report(campaign, folder):
         text.append("| " + " | ".join([f"{row['scenario']}/{row['pair']}", LABELS[row["detector"]],
             *[fmt(row[key]) for key in ("host_cpu_percent", "detectors_cpu_percent", "detectors_rss_mib", "ue1_release_delay_s", "benign_release_commands")],
             f"{row['valid_runtime']} / {row['valid_measurements']} / {row['utilization_valid']}"]) + " |")
-    text += ["", "Utilization follows the paper's Figure 7 metric: CPU use of the UPF Docker containers. Cgroup CPU-time deltas are normalized to one logical CPU (100% = one fully busy CPU); values can exceed 100%. This includes each UPF's detector. CPU use is not an energy measurement. Our comparator is a weaker heuristic, whereas the paper compares defense on/off.",
+    text += ["", "Utilization follows the paper's Figure 7 metric: CPU use of the UPF Docker containers. Cgroup CPU-time deltas are normalized to one logical CPU (100% = one fully busy CPU); values can exceed 100%. This includes each UPF's detector. CPU use is not an energy measurement. Our comparator is a heuristic, whereas the paper compares defense on/off.",
              "Host CPU is normalized to the whole machine; detector CPU to one logical CPU (sum may exceed 100%). Detector RSS sums two processes and can double-count shared pages; host memory and individual process metrics are in summary.csv/summary.json.",
              "All outcomes remain in the report, including benign releases, runtime faults, incomplete coverage, and no observed release. NA means missing, not zero. Three attack pairs are descriptive, not a guarantee of AI superiority."]
     if campaign.get("error"):
