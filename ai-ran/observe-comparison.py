@@ -285,7 +285,7 @@ def report():
     write_report(campaign, pair)
     shutil.copy2(pair / "comparison.md", lab.STATE.parent / "comparison.md")
     print("TABLE AND PLOTS:", pair)
-    print("Read: less /var/tmp/ai-ran/state/comparison.md")
+    print("Read: cat /var/tmp/ai-ran/state/comparison.md")
 
 
 def main():

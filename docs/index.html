@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Generated from the student Markdown; source SHA256: f4c3a4d419b264f92c805ef7a53357dd6590d11b544d581c31c80c97f0352c2d -->
+<!-- Generated from the student Markdown; source SHA256: 0d5ae4d12df6712d112f11ce8fa6b725469b141eec01811f1c3a6781f9b3095a -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -234,15 +234,10 @@ e83254004cc4   1571393477ab   "/openair-udr/bin/oa…"   21 seconds ago   Up 20 
 5f6435dd748f   3f9ab2e401d2   "/bin/bash -c ' ipta…"   23 seconds ago   Up 22 seconds (healthy)                                            oai-ext-dn
 a5e86a571a49   7dcddc01f13b   "docker-entrypoint.s…"   23 seconds ago   Up 23 seconds (healthy)   3306/tcp, 33060/tcp                      mysql
 </code></pre></div>
-<p>All twelve rows show running, healthy containers. Use <code>NAMES</code> to identify the
-services; <code>IMAGE</code> shows image IDs in this example. Your container IDs and elapsed
-times will differ. Scroll horizontally to see the remaining columns.</p>
-<p>The custom UPFs already contain the model and original anomaly-detection
-scripts. The core uses two SMFs/UPFs with
-distinct slices. NSSF is deployed, but this snapshot uses direct NRF discovery
-for SMF selection in this fixed core configuration.</p>
-<p>The core separates control-plane functions from packet forwarding. Identify
-these roles in the container list:</p>
+<p>All twelve rows show running, healthy containers. Use <code>NAMES</code> to identify the services; <code>IMAGE</code> shows image IDs in this example. Your container IDs and elapsed times will differ.</p>
+<p>The custom UPFs already contain the model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
+distinct slices.</p>
+<p>The core separates control-plane functions from packet forwarding. Identify these roles in the container list:</p>
 <div aria-label="Table: Component" class="table-scroll" role="region" tabindex="0"><table>
 <thead>
 <tr>
@@ -287,15 +282,16 @@ sudo ss -lnp -A sctp
 <p>Expected checkpoint:</p>
 <div class="code-panel reference-panel"><div class="code-bar"><span class="code-kind">Expected output</span></div><pre><code class="language-text">READY: gNB E2 setup and RRC module
 </code></pre></div>
-<p>After the gNB readiness message, wait two seconds, then stop the capture and log viewer with Ctrl+C
+<p>After the gNB readiness message, wait two seconds, then stop the capture and live log stream with Ctrl+C
 in their respective terminals. Inspect the saved capture:</p>
 <div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 7" class="copy-button" data-copy="command-07" type="button">Copy</button></div><pre><code class="language-bash" id="command-07">tshark -r /var/tmp/ai-ran/captures/connect-ric.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-ric.pcap
-less /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
 </code></pre></div>
-<p>Press <code>q</code> to exit <code>less</code>. The inspection helper uses this runtime's exact ASN.1
-definitions. It shows frame numbers, message names, and full decoded XML; it
-deduplicates SCTP retransmissions and reassembles DATA fragments.</p>
+<p>The helper uses this runtime's exact ASN.1 definitions and saves the decoded
+messages alongside the capture. <code>cat</code> prints the full details directly in the
+terminal; use terminal scrollback/search for observations and screenshots.
+The helper deduplicates SCTP retransmissions and reassembles DATA fragments.</p>
 <p>There are two setup operations to distinguish. <strong>SCTP</strong> establishes the
 transport association; <strong>E2 Setup</strong> exchanges the gNB identity and supported
 RAN functions over that association. The SCTP handshake has four messages:</p>
@@ -377,10 +373,10 @@ Explain why identical interface names in two namespaces do not conflict.</p></as
 <p>Wait two seconds after the readiness message, then stop the capture. Inspect it:</p>
 <div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 14" class="copy-button" data-copy="command-14" type="button">Copy</button></div><pre><code class="language-bash" id="command-14">tshark -r /var/tmp/ai-ran/captures/connect-xapp.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-xapp.pcap
-less /var/tmp/ai-ran/captures/connect-xapp.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/connect-xapp.pcap.messages.txt
 </code></pre></div>
-<p>Also inspect the xApp's log:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 15" class="copy-button" data-copy="command-15" type="button">Copy</button></div><pre><code class="language-bash" id="command-15">less /var/log/ai-ran/xapp.log
+<p>Print the xApp's startup log:</p>
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 15" class="copy-button" data-copy="command-15" type="button">Copy</button></div><pre><code class="language-bash" id="command-15">cat /var/log/ai-ran/xapp.log
 </code></pre></div>
 <aside aria-label="Lab report question 4" class="lab-report" id="lab-report-4"><span class="callout-label">Lab report · 4</span><p> show E42 Setup request/response, the assigned xApp ID, and the
 registered E2 node information. Compare the 36421 and 36422 associations.
@@ -405,7 +401,7 @@ the application protocol.</p>
 <p>After the initial control acknowledgment, stop both captures. Inspect them:</p>
 <div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 19" class="copy-button" data-copy="command-19" type="button">Copy</button></div><pre><code class="language-bash" id="command-19">tshark -r /var/tmp/ai-ran/captures/detector-connect.pcap -Y tcp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/detector-control.pcap
-less /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
 </code></pre></div>
 <p>The helper also decodes the nested RC control message. Parameter IDs 8 and 9
 identify SST/SD, and ID 12 carries the dedicated PRB policy ratio. This branch
@@ -525,7 +521,7 @@ and SYN traffic. A 100%-anomalous window and release are not guaranteed.</p></as
 <aside aria-label="Observation checkpoint" class="observe"><p><strong>Observe after the attack stops:</strong> do UE2's throughput and CPU recover?
 Does lower CPU mean protection succeeded, or could traffic have stalled?</p></aside>
 <h4 id="f-finish-recording-then-inspect">F. Finish recording, then inspect<a aria-label="Link to section: F. Finish recording, then inspect" class="heading-anchor" href="#f-finish-recording-then-inspect">#</a></h4>
-<p>After the 75-second traffic runs, stop the log viewer with Ctrl+C in terminal 4
+<p>After the 75-second traffic runs, stop the live log stream with Ctrl+C in terminal 4
 and run <code>wait</code> there. It waits for that terminal's bounded background jobs,
 including the 95-second captures, to finish. Press Ctrl+C in terminals 1, 2,
 and 3 if the receiver/CPU commands are still running.</p>
@@ -539,7 +535,7 @@ the baseline and attack windows, report the incomplete measurement.</p>
 <div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 30" class="copy-button" data-copy="command-30" type="button">Copy</button></div><pre><code class="language-bash" id="command-30">cat /var/tmp/ai-ran/captures/comparison/current/attack.log
 cat /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/comparison/current/control.pcap
-less /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
 tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,0
 tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,1
 tshark -r /var/tmp/ai-ran/captures/comparison/current/control.pcap -q -z follow,tcp,ascii,0
@@ -562,11 +558,13 @@ UE1 log and removal of its context in the gNB log. If the release succeeded and
 the UE has not reconnected, UE1 should no longer deliver traffic to the DN;
 UE2 should retain connectivity. A failed ping alone cannot distinguish release
 from a zero quota or another failure, so use the endpoint logs as well:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 32" class="copy-button" data-copy="command-32" type="button">Copy</button></div><pre><code class="language-bash" id="command-32">less /var/log/ai-ran/ue1.log
-less /var/log/ai-ran/gnb.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 32" class="copy-button" data-copy="command-32" type="button">Copy</button></div><pre><code class="language-bash" id="command-32">grep -nEi 'release|remov|reestablish|reconnect|error|fail|assert|fatal|segmentation' /var/log/ai-ran/ue1.log /var/log/ai-ran/ue2.log /var/log/ai-ran/gnb.log
 sudo ip netns exec ue1 ping -c 3 -W 1 192.168.70.145
 sudo ip netns exec ue2 ping -c 3 -W 1 192.168.70.145
 </code></pre></div>
+<p>The filter prints release, context-removal, reconnection, and error events with
+filenames and line numbers. If it prints nothing, record that no matching events
+were found. Complete logs remain in the exported evidence bundle.</p>
 <aside aria-label="Lab report question 6" class="lab-report" id="lab-report-6"><span class="callout-label">Lab report · 6</span><p> present an evidence chain with frame numbers and timestamps:
 detector counts → xApp decision → E42/E2 control and ACK → telnet release
 request → UE/gNB radio-state logs → continued UE2 connectivity. Show at least
@@ -765,11 +763,11 @@ it. Relate these observations to the differences from your RF run.</p></aside>
 <p>Use the pair to explain how detector output influenced slice-resource allocation
 and UE-release behavior during the attack. The comparison connects the observed
 control actions to UE2 service quality and UPF processing cost.</p>
-<p>After both runs are finished, generate the table and plots:</p>
+<p>After both runs are finished, generate the table and plots, then print the summary:</p>
 <div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 35" class="copy-button" data-copy="command-35" type="button">Copy</button></div><pre><code class="language-bash" id="command-35">sudo /opt/ai-ran/bin/plot-comparison
-less /var/tmp/ai-ran/state/comparison.md
+cat /var/tmp/ai-ran/state/comparison.md
 </code></pre></div>
-<p>This command only processes saved recordings. It does not start another run.
+<p><code>plot-comparison</code> only processes saved recordings. It does not start another run.
 The printed pair directory contains <code>comparison.md</code>, <code>summary.csv</code>,
 <code>campaign.json</code>, PNG/SVG plots, and separate <code>rf/</code> and <code>heuristic/</code> evidence.
 Export the bundle below to view the plots on your laptop.</p>

@@ -104,10 +104,10 @@ e83254004cc4   1571393477ab   "/openair-udr/bin/oa…"   21 seconds ago   Up 20 
 a5e86a571a49   7dcddc01f13b   "docker-entrypoint.s…"   23 seconds ago   Up 23 seconds (healthy)   3306/tcp, 33060/tcp                      mysql
 ```
 
-All twelve rows show running, healthy containers. Use `NAMES` to identify the services; `IMAGE` shows image IDs in this example. Your container IDs and elapsed times will differ. 
+All twelve rows show running, healthy containers. Use `NAMES` to identify the services; `IMAGE` shows image IDs in this example. Your container IDs and elapsed times will differ.
 
 The custom UPFs already contain the model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
-distinct slices. 
+distinct slices.
 
 The core separates control-plane functions from packet forwarding. Identify these roles in the container list:
 
@@ -153,18 +153,19 @@ Expected checkpoint:
 READY: gNB E2 setup and RRC module
 ```
 
-After the gNB readiness message, wait two seconds, then stop the capture and log viewer with Ctrl+C
+After the gNB readiness message, wait two seconds, then stop the capture and live log stream with Ctrl+C
 in their respective terminals. Inspect the saved capture:
 
 ```bash
 tshark -r /var/tmp/ai-ran/captures/connect-ric.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-ric.pcap
-less /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
 ```
 
-Press `q` to exit `less`. The inspection helper uses this runtime's exact ASN.1
-definitions. It shows frame numbers, message names, and full decoded XML; it
-deduplicates SCTP retransmissions and reassembles DATA fragments.
+The helper uses this runtime's exact ASN.1 definitions and saves the decoded
+messages alongside the capture. `cat` prints the full details directly in the
+terminal; use terminal scrollback/search for observations and screenshots.
+The helper deduplicates SCTP retransmissions and reassembles DATA fragments.
 
 There are two setup operations to distinguish. **SCTP** establishes the
 transport association; **E2 Setup** exchanges the gNB identity and supported
@@ -253,13 +254,13 @@ Wait two seconds after the readiness message, then stop the capture. Inspect it:
 ```bash
 tshark -r /var/tmp/ai-ran/captures/connect-xapp.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-xapp.pcap
-less /var/tmp/ai-ran/captures/connect-xapp.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/connect-xapp.pcap.messages.txt
 ```
 
-Also inspect the xApp's log:
+Print the xApp's startup log:
 
 ```bash
-less /var/log/ai-ran/xapp.log
+cat /var/log/ai-ran/xapp.log
 ```
 
 **Lab report:** show E42 Setup request/response, the assigned xApp ID, and the
@@ -300,7 +301,7 @@ After the initial control acknowledgment, stop both captures. Inspect them:
 ```bash
 tshark -r /var/tmp/ai-ran/captures/detector-connect.pcap -Y tcp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/detector-control.pcap
-less /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
 ```
 
 The helper also decodes the nested RC control message. Parameter IDs 8 and 9
@@ -450,7 +451,7 @@ Does lower CPU mean protection succeeded, or could traffic have stalled?
 
 #### F. Finish recording, then inspect
 
-After the 75-second traffic runs, stop the log viewer with Ctrl+C in terminal 4
+After the 75-second traffic runs, stop the live log stream with Ctrl+C in terminal 4
 and run `wait` there. It waits for that terminal's bounded background jobs,
 including the 95-second captures, to finish. Press Ctrl+C in terminals 1, 2,
 and 3 if the receiver/CPU commands are still running.
@@ -469,7 +470,7 @@ the baseline and attack windows, report the incomplete measurement.
 cat /var/tmp/ai-ran/captures/comparison/current/attack.log
 cat /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/comparison/current/control.pcap
-less /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
+cat /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
 tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,0
 tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,1
 tshark -r /var/tmp/ai-ran/captures/comparison/current/control.pcap -q -z follow,tcp,ascii,0
@@ -500,11 +501,14 @@ UE2 should retain connectivity. A failed ping alone cannot distinguish release
 from a zero quota or another failure, so use the endpoint logs as well:
 
 ```bash
-less /var/log/ai-ran/ue1.log
-less /var/log/ai-ran/gnb.log
+grep -nEi 'release|remov|reestablish|reconnect|error|fail|assert|fatal|segmentation' /var/log/ai-ran/ue1.log /var/log/ai-ran/ue2.log /var/log/ai-ran/gnb.log
 sudo ip netns exec ue1 ping -c 3 -W 1 192.168.70.145
 sudo ip netns exec ue2 ping -c 3 -W 1 192.168.70.145
 ```
+
+The filter prints release, context-removal, reconnection, and error events with
+filenames and line numbers. If it prints nothing, record that no matching events
+were found. Complete logs remain in the exported evidence bundle.
 
 **Lab report:** present an evidence chain with frame numbers and timestamps:
 detector counts → xApp decision → E42/E2 control and ACK → telnet release
@@ -666,14 +670,14 @@ Use the pair to explain how detector output influenced slice-resource allocation
 and UE-release behavior during the attack. The comparison connects the observed
 control actions to UE2 service quality and UPF processing cost.
 
-After both runs are finished, generate the table and plots:
+After both runs are finished, generate the table and plots, then print the summary:
 
 ```bash
 sudo /opt/ai-ran/bin/plot-comparison
-less /var/tmp/ai-ran/state/comparison.md
+cat /var/tmp/ai-ran/state/comparison.md
 ```
 
-This command only processes saved recordings. It does not start another run.
+`plot-comparison` only processes saved recordings. It does not start another run.
 The printed pair directory contains `comparison.md`, `summary.csv`,
 `campaign.json`, PNG/SVG plots, and separate `rf/` and `heuristic/` evidence.
 Export the bundle below to view the plots on your laptop.
