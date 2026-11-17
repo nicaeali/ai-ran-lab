@@ -14,6 +14,20 @@ After a repository update, push the commit and refresh the POWDER profile to
 that revision before instantiating. Rebooting an existing node does not fetch
 new GitHub commits.
 
+## Publish the browser manual
+
+The prebuilt `docs/index.html` contains its styles, copy-button script, and
+topology image, so students can open it directly in a browser. No document-build
+packages are needed on the experiment node.
+
+To host it with GitHub Pages, open the repository's **Settings → Pages**, choose
+**Deploy from a branch**, and select `main` and `/docs`. After deployment, give
+students the site URL shown by GitHub. The `docs/.nojekyll` marker keeps the
+manual and shell commands as static files. The POWDER profile link is a separate
+link supplied by the instructor.
+
+## Automatic node preparation
+
 POWDER places the source at `/local/repository`. The profile automatically runs:
 
 ```bash
@@ -35,7 +49,7 @@ commands such as `docker ps` use the new group membership.
 
 | Location | Content |
 | --- | --- |
-| `/opt/oai-anomaly-detection` | This repository, model/data, and configurations |
+| `/opt/oai-anomaly-detection` | This repository, model artifacts, and configurations |
 | `/opt/flexric` | Near-RT RIC, xApp, and decoder build |
 | `/opt/openairinterface5g` | gNB and software UE build |
 | `/opt/openairinterface5g-telnet` | Pinned telnet-library worktree |
@@ -56,11 +70,32 @@ address slice-control concurrency and control-acknowledgment ordering. This core
 configuration uses HTTP/1 SBI, explicit NRF addressing, and direct NRF SMF
 selection; NSSF is deployed but not used for that selection.
 
-The comparison runner measures receiver goodput, UE2 RTT/loss, and UPF-container
-CPU utilization, following the paper's Figure 7 resource metric. Container CPU
-uses cgroup counters; host/process CPU and memory are supplementary diagnostics.
+The live exercise follows anomaly-detector reports through the xApp to RAN
+slice-resource adjustments and RRC-release requests during a DoS attack. One RF
+run and one heuristic baseline run measure receiver goodput, UE2 RTT/loss, and
+UPF-container CPU utilization, following the paper's Figure 7 resource metric.
+Students run the traffic, capture, and Docker stats commands themselves. Small
+helpers timestamp output and analyze one RF/heuristic pair; they do not run an
+automated campaign. Each run has 75 seconds of background traffic and one
+25-second attack. CPU and memory are recorded from the Docker stats stream.
 
 The profile installs these comparison tools automatically during startup.
+
+If core startup times out during NF registration, inspect the NRF first:
+
+```bash
+docker logs oai-nrf-slice12
+```
+
+An NRF assertion/crash was observed during restart testing of the pinned image.
+If the log shows that failure, reset the stopped/partial topology and retry:
+
+```bash
+sudo /opt/ai-ran/bin/stop-lab
+sudo /opt/ai-ran/bin/start-core
+```
+
+Continue only after the core reports twelve healthy containers.
 
 ## Operating the lab
 
@@ -73,7 +108,8 @@ Use one topology per node: the container names, Compose project, namespaces,
 and service ports are fixed. `stop-lab` preserves captures and database volumes.
 A capture started with an existing filename overwrites that capture.
 
-The supplied model is used for inference and offline evaluation without
-retraining. The lab demonstrates functional control-loop behavior; the handout
+The supplied model is used for live inference without retraining. Both runs use
+the same xApp policy, with either RF or the heuristic in both UPFs. The lab
+demonstrates functional control-loop behavior; the handout
 explains the custom E42/reporting interfaces and the separate telnet release
 path.

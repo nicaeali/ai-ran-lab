@@ -34,6 +34,7 @@ COMMANDS = {
     "start-core": "core", "start-ric": "ric", "start-gnb": "gnb",
     "start-ue1": "ue1", "start-ue2": "ue2", "start-xapp": "xapp",
     "start-detectors": "detectors", "send-normal": "normal",
+    "start-heuristic-detectors": "heuristic",
     "run-attack": "attack", "stop-lab": "stop", "status": "status", "export-results": "export",
 }
 
@@ -267,7 +268,6 @@ def prepare():
     run([LAB / "venv/bin/python", "-m", "pip", "install", "-r", REPO / "requirements-powder.txt"])
     run([LAB / "venv/bin/python", "-m", "pip", "install", "-r", REPO / "requirements-comparison.txt"])
     run([LAB / "venv/bin/python", "-m", "pip", "check"])
-    run([LAB / "venv/bin/python", REPO / "powder/evaluate-saved-model.py"])
     compose = ["docker", "compose", "--project-name", "slicing-cn", "-f",
                REPO / "slicing-cn/docker-compose-slicing-basic-nrf.yaml", "-f", REPO / "powder/compose-pinned.yaml"]
     run(compose + ["config", "--quiet"])
@@ -312,12 +312,27 @@ def install_entrypoints():
         script = LAB / "bin" / executable
         script.write_text(f"#!/bin/sh\nset -eu\nexec /usr/bin/python3 /opt/oai-anomaly-detection/ai-ran/lab.py {action}\n")
         script.chmod(0o755)
-    targets = {"inspect-control": "ai-ran/inspect-control.py", "evaluate-model": "powder/evaluate-saved-model.py",
-               "compare-models": "ai-ran/compare-models.py", "run-comparison": "ai-ran/compare-detectors.py"}
+    targets = {"inspect-control": "ai-ran/inspect-control.py"}
     for name, target in targets.items():
         script = LAB / "bin" / name
         script.write_text(f'#!/bin/sh\nset -eu\nexec /opt/ai-ran/venv/bin/python /opt/oai-anomaly-detection/{target} "$@"\n')
         script.chmod(0o755)
+
+    measurements = {"prepare-rf-trial": "prepare-rf", "prepare-heuristic-trial": "prepare-heuristic",
+                    "mark-traffic-start": "traffic-start", "mark-attack-start": "attack-start",
+                    "record-ue1-throughput": "record-ue1", "record-ue2-throughput": "record-ue2",
+                    "record-upf-cpu": "record-cpu", "finish-trial": "finish", "plot-comparison": "report"}
+    for name, action in measurements.items():
+        script = LAB / "bin" / name
+        script.write_text(f'#!/bin/sh\nset -eu\nexec /opt/ai-ran/venv/bin/python /opt/oai-anomaly-detection/ai-ran/observe-comparison.py {action} "$@"\n')
+        script.chmod(0o755)
+    retired = {"run-comparison": "ai-ran/compare-detectors.py",
+               "evaluate-model": "powder/evaluate-saved-model.py", "compare-models": "ai-ran/compare-models.py"}
+    for name, target in retired.items():
+        old = LAB / "bin" / name
+        previous = f'#!/bin/sh\nset -eu\nexec /opt/ai-ran/venv/bin/python /opt/oai-anomaly-detection/{target} "$@"\n'
+        if old.exists() and old.read_text() == previous:
+            old.unlink()
 
 
 if __name__ == "__main__":

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """Exploring the AI-RAN
 
-One d430 running an OAI RFsim RAN, two software UEs, a sliced 5G core,
-FlexRIC near-RT RIC, and an anomaly-driven control xApp.
+In this experiment, you will bring up an end-to-end 5G network and follow an AI-assisted control loop.
 
 Instructions:
 Wait for Startup to finish. Preparation installs packages, clones pinned

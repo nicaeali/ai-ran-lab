@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Swap only the classifier in the pinned packaged detector; preserve capture/reporting.
+"""Replace classification in the pinned detector while preserving extraction/windows.
 
 Run inside the appropriate UPF with /app as the working directory. The original
-files and ML artifacts are read-only. Threshold 28 was fixed by training-only
-offline calibration before this live experiment.
+files and ML artifacts are read-only. The classroom uses the TCP-aware rule
+with every-window reports. Its cutoff 28 is inherited from the training-calibrated
+byte-only rule; the protocol guard checks TCP connection-attempt/reset flags.
+Historical byte-only and periodic-reporting configurations remain reproducible.
 """
 
 import argparse
@@ -40,12 +42,22 @@ def load_detector(number):
     return module
 
 
-def install_rule(module, report_interval=0.0):
+def classify(row, rule="byte"):
+    small = row["src_bytes"] + row["dst_bytes"] <= THRESHOLD
+    if rule == "byte":
+        return int(small)
+    if rule != "tcp-flags":
+        raise ValueError("Unknown heuristic rule")
+    flags = set(str(row["flag"]))
+    connection_attempt_or_reset = ("S" in flags and "A" not in flags) or "R" in flags
+    return int(row["protocol_type"] == "tcp" and small and connection_attempt_or_reset)
+
+
+def install_rule(module, report_interval=0.0, rule="byte"):
     last_report = None
     def make_predictions():
         nonlocal last_report
-        predictions = [int(row["src_bytes"] + row["dst_bytes"] <= THRESHOLD)
-                       for row in module.sliding_window]
+        predictions = [classify(row, rule) for row in module.sliding_window]
         anomaly_count = sum(predictions)
         normal_count = len(predictions) - anomaly_count
         module.logging.info(f"Window results: {normal_count} Normal, {anomaly_count} Anomaly")
@@ -65,7 +77,10 @@ def install_rule(module, report_interval=0.0):
     module.model = None
     module.preprocessor = None
     gc.collect()
-    module.logging.info("BYTE_HEURISTIC: src_bytes + dst_bytes <= 28; window=30, step=10; original capture/extraction/report transport")
+    if rule == "tcp-flags":
+        module.logging.info("TCP_FLAG_HEURISTIC: tcp, src_bytes + dst_bytes <= 28, SYN without ACK or RST; window=30, step=10; original capture/extraction/report transport")
+    else:
+        module.logging.info("BYTE_HEURISTIC: src_bytes + dst_bytes <= 28; window=30, step=10; original capture/extraction/report transport")
     module.logging.info(f"REPORT_INTERVAL_SECONDS: {report_interval}; 0 means every window; periodic mode is a reporting-latency ablation")
 
 
@@ -73,11 +88,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slice", type=int, choices=(1, 2), required=True)
     parser.add_argument("--report-interval", type=float, default=0.0)
+    parser.add_argument("--rule", choices=("byte", "tcp-flags"), default="byte")
     args = parser.parse_args()
     if args.report_interval not in (0.0, 10.0):
         parser.error("only the declared 0- or 10-second reporting variants are supported")
     module = load_detector(args.slice)
-    install_rule(module, args.report_interval)
+    install_rule(module, args.report_interval, args.rule)
     module.main()
 
 

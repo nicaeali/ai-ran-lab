@@ -1,97 +1,68 @@
-# Exploring the AI-RAN: AI versus heuristic
+# Exploring the AI-RAN
 
-In this experiment, you will bring up an end-to-end 5G network and follow an
-AI-assisted control loop. You will observe:
+In this experiment, you will bring up an end-to-end 5G network and follow an AI-assisted control loop. You will observe:
 
-- how a gNB connects to a near-real-time RAN Intelligent Controller (RIC);
-- how an xApp registers with that RIC;
-- how anomaly detectors in the UPFs send traffic classifications to the xApp;
-- how the xApp changes RAN slice resources and requests a UE release;
-- how packet captures and endpoint logs together establish what happened.
-- how AI and a heuristic affect legitimate-user throughput,
-  latency, and UPF container CPU utilization, with supplementary memory measurements.
+- how a near-real-time RAN Intelligent Controller (RIC) accepts an E2 connection from a gNB;
+- how an xApp registers with that RIC and requests RAN slice-resource changes and UE release;
+- how a pre-trained ML model supports an AI-for-RAN control loop in an O-RAN-enabled network.
 
-**The main experiment is the AI-versus-heuristic comparison.** The initial
-connection/capture exercises establish how the system works. You will then
-compare classifiers offline and run matched live trials with automatic
-measurement and plots. A working AI control loop alone does not answer the
-comparison question.
+**The main experiment explores AI/ML-driven anomaly detection and how it informs RAN slice-resource allocation and Radio Resource Control (RRC) connection-release decisions during a controlled denial-of-service (DoS) attack.** The initial connection/capture exercises establish how the system works. You will then perform **one Random Forest (RF) run and one heuristic run** on live traffic, using the heuristic as a rule-based baseline. You start the traffic and attack yourself, follow the resulting control actions, and compare the live measurements.
 
-The experiment uses one POWDER d430 server and simulated RF links. Reserve the
-server in advance and complete the exercises during that reservation.
+The experiment uses one POWDER d430 server and simulated RF links. Reserve the server in advance and complete the exercises during that reservation.
 
 ## Background
 
-![The implemented AI-for-RAN control loop](../ai-ran/architecture.svg)
+![AI-RAN lab network with two slices, UPF detectors, and a control xApp within the near-RT RIC](ai-ran-network.png)
 
 **O-RAN** exposes RAN functionality through programmable interfaces and
-controllers. A near-RT RIC hosts or supports control applications called xApps.
-**AI-RAN** is broader: AI can optimize RAN operation, share infrastructure with
-RAN workloads, or support AI services through a RAN. This lab demonstrates
-**AI for RAN control**, not every AI-RAN deployment model.
+controllers. A near-RT RIC hosts or supports control applications called xApps. **AI-RAN** is broader: AI can optimize RAN operation, share infrastructure with RAN workloads, or support AI services through a RAN. This lab demonstrates **AI for RAN control**.
 
-Here, the trained Random Forest runs in the two custom UPF containers. The C
-xApp consumes its classifications and applies a deterministic policy. This
-distinguishes inference from decision-making and enforcement:
+- **Denial-of-service (DoS) attack:** An attempt to make a network or service slow or unavailable to legitimate users, often by overwhelming it with traffic.
+- **Network slicing:** Creating logical networks, called slices, on shared physical infrastructure, each with its own resource settings and service policies.
+- **RRC connection release:** Ending a UE's active radio connection to the gNB, stopping its user-data traffic until it reconnects.
+
+Here, a detector runs in each of the two custom UPF containers. In the first run, **both UPFs use the saved Random Forest** [[1]](#reference-1). In the second, **both UPFs use a TCP-aware
+heuristic**. Each method classifies live traffic as normal or anomalous and reports counts to the same xApp. The xApp applies a fixed policy to those counts; the gNB enforces the requested resource quotas. This is the deployed inference-and-control part of an AI/ML workflow: capture traffic, extract features, classify packets, report the results, and observe the network's response to control actions. The pre-trained model stays fixed during the experiment. The heuristic run provides a non-ML baseline for the same loop. The roles of classification, decision-making, and enforcement are:
 
 ```text
-UE traffic → UPF detector (infer) → xApp (decide) → RIC/E2 agent → gNB (enforce)
-                                  └──────── telnet release request ────────┘
+UE traffic → UPF detector (classify) → xApp (decide) → RIC/E2 agent → gNB (enforce)
+                                       └──────── telnet release request ────────┘
 ```
-
-| Connection | Implementation in this lab |
-| --- | --- |
-| gNB ↔ near-RT RIC | E2AP over SCTP, RIC port 36421 |
-| xApp ↔ RIC | FlexRIC's custom E42 extension over SCTP, RIC port 36422 |
-| UPF detectors → xApp | Custom count messages over TCP, host port 8080 |
-| xApp → gNB release service | Separate telnet/TCP path, port 9090 |
-| gNB ↔ core user plane | GTP-U over UDP, port 2152 |
-| gNB ↔ AMF | NGAP over SCTP, port 38412 |
-| gNB ↔ software UEs | RFsim software IQ transport, not over-the-air radio |
-
-The detector socket is not a standardized A1/O2 implementation. RRC release is
-not carried in the E2 control message in this prototype. The xApp is control-only;
-do not assume it establishes a KPM/RC indication subscription.
 
 ### How the attack, xApp, and heuristic work
 
-**DoS workload.** UE1 is the traffic source under test; UE2 carries legitimate
-traffic. The introductory low-rate SYN command makes the control loop easy to
-inspect. The later performance comparison uses a bounded SYN packet flood:
-UE1 sends zero-payload TCP SYN packets toward the lab DN on port 333 at a
-requested 10,000 packets/s. This creates traffic and processing pressure on the
-shared radio/core path. We measure whether UE2's goodput and responsiveness
-degrade; we do not assume that this closed-port workload exhausts a server's
-TCP connection backlog. Requested sending rate and achieved rate can differ.
+**DoS workload.** UE1 is the traffic source under test; UE2 carries legitimate traffic. The live control-loop exercise uses a bounded SYN packet flood: UE1 sends zero-payload TCP SYN packets toward the lab DN at a requested 10,000 packets/s. This creates traffic and processing pressure on the shared radio/core path. We measure whether UE2's throughput and responsiveness degrade. Requested sending rate and achieved rate can differ.
 
-**xApp policy.** Each UPF reports counts of normal/anomalous classifications.
-The xApp converts these ratios into nominal slice allocations, rescales if the
-sum exceeds 100, and applies decreases before increases. A fully anomalous
-30-packet window can trigger a UE release through the separate telnet path.
-The same xApp policy is used in both comparison arms.
+**xApp policy.** Each UPF reports counts of normal/anomalous classifications. The two slices are configured before traffic starts. The xApp uses their anomaly ratios to adjust nominal physical resource block (PRB) allocation ratios. A fully anomalous 30-packet window can trigger a UE release through the separate telnet path. The same xApp policy is used in both comparison arms.
 
-**Heuristic.** The fixed rule labels a record anomalous when
-`src_bytes + dst_bytes <= 28`. The cutoff was calibrated on training records
-before testing. In the live comparison it reports **at most once every ten
-seconds**, starting with its first complete window, while RF reports every
-computed window. Both use 30-packet windows advancing by ten packets. The
-classifiers and reporting cadences differ, so the live comparison evaluates
-the whole detection/reporting pipeline. The live extractor sets `dst_bytes = src_bytes`,
-so the rule also flags ordinary small/empty packets such as TCP ACKs; the clean
-controls expose that tradeoff. Do not tune the rule or omit unfavorable trials.
+**What a UE release does.** A successful RRC Release removes the UE's active radio connection and interrupts its end-to-end user-data path through the gNB and UPF. Releasing UE1 therefore stops delivery of its attack traffic **and its legitimate traffic** over that connection. Reducing a slice quota changes its resource allocation; releasing the UE disconnects its active radio path. Correlate the release request with UE/gNB logs, traffic measurements, and reachability checks, and report any reconnection.
+
+**Heuristic.** The rule labels a packet anomalous when it is TCP, has a payload of **at most 14 bytes**, and has either **SYN without ACK** or **RST** set. It uses the existing extracted protocol, flags, and byte counts, not the known attack IP, port, or scheduled start time. This is a fixed lab baseline; a small payload alone is not enough to trigger an anomalous label.
+
+**Both the heuristic and RF report every computed window**:
+30-packet windows with a ten-packet step (20 packets overlap). Legitimate connection attempts or resets can still trigger false alarms. The heuristic does not flag UDP/ICMP traffic or TCP packets outside its size/flag conditions.
 
 ## Run the experiment
 
-### Reserve and instantiate
+### Reserve a server
 
-Reserve **one d430 on the Emulab cluster** in your course project. Leave the
-frequency reservation blank. Allow 6–12 hours for provisioning, compilation,
-the exercises, and troubleshooting; cold preparation includes building OAI.
+You will need a [POWDER](https://powderwireless.net/) account with access to your
+course project. Reserve the hardware several days before you plan to do the
+lab. In the portal, choose **Experiments → Reserve Resources**, then:
 
-At your reservation time, open the instructor-provided POWDER profile link for
-**Exploring-the-AI-RAN**, select the course project and reservation, and finish
-instantiation. Wait for the node to be Ready **and Startup to finish**. The
-profile installs packages/dependencies and places the repositories under `/opt`.
+- select the course project and the **Emulab** cluster;
+- select **d430** hardware and request **one node**;
+- leave the frequency range blank, since this experiment uses RFsim;
+- choose a start and end time, allowing 6–12 hours for provisioning, compilation, the exercises, and troubleshooting;
+- describe the purpose as learning about AI-RAN in your course.
+
+Use **Check** to confirm availability, then submit the reservation request. Plan to finish and export your work during the reservation.
+
+### Instantiate the profile
+
+At your reservation time, open the instructor-provided POWDER profile link for **Exploring-the-AI-RAN**. Read the profile description and continue to the project selection page. Select your course project. On the schedule page, select your active reservation so the experiment ends within your reserved time, then finish instantiation.
+
+Wait for the node to be **Ready** and its **Startup** state to be **Finished**. The startup service installs dependencies, places the repositories under `/opt`, and builds the software. Node allocation finishing does not mean compilation has finished.
 
 Use the portal's SSH command. Confirm preparation:
 
@@ -121,10 +92,35 @@ sudo /opt/ai-ran/bin/start-core
 docker ps
 ```
 
-Expect twelve running, healthy containers. The custom UPFs already contain the
+Expected checkpoint from the startup helper:
+
+```text
+READY: 12 healthy core containers
+```
+
+Your container IDs will differ, but `docker ps` should show twelve running,
+healthy containers. The custom UPFs already contain the
 model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
 distinct slices. NSSF is deployed, but this snapshot uses direct NRF discovery
 for SMF selection in this fixed core configuration.
+
+The core separates control-plane functions from packet forwarding. Identify
+these roles in the container list:
+
+| Component | Role in this experiment |
+| --- | --- |
+| AMF | Handles UE access and mobility signaling and the gNB's NGAP connection |
+| SMFs | Manage the two slices' PDU sessions and configure their UPFs |
+| UPFs | Forward user traffic; each custom container also runs a traffic detector |
+| NRF | Lets network functions register and discover other functions |
+| AUSF, UDM, UDR | Support authentication, subscriber management, and subscriber data |
+| NSSF | Deployed, but bypassed for SMF selection in this fixed configuration |
+| MySQL | Stores the supplied subscriber database |
+| External DN | Provides the data-network endpoint used by the software UEs |
+
+> **Tip:** If the readiness check fails, inspect the container logs before
+> proceeding. The [setup notes](../ai-ran/README.md) describe recovery from the
+> observed NRF startup assertion.
 
 **Lab report:** save the command/output showing core health. Identify the AMF,
 NRF, two SMFs, two UPFs, and external-DN container. State which components run
@@ -157,6 +153,12 @@ Start the gNB in terminal 3:
 sudo /opt/ai-ran/bin/start-gnb
 ```
 
+Expected checkpoint:
+
+```text
+READY: gNB E2 setup and RRC module
+```
+
 After the gNB readiness message, wait two seconds, then stop the capture and log viewer with Ctrl+C
 in their respective terminals. Inspect the saved capture:
 
@@ -169,6 +171,22 @@ less /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
 Press `q` to exit `less`. The inspection helper uses this runtime's exact ASN.1
 definitions. It shows frame numbers, message names, and full decoded XML; it
 deduplicates SCTP retransmissions and reassembles DATA fragments.
+
+There are two setup operations to distinguish. **SCTP** establishes the
+transport association; **E2 Setup** exchanges the gNB identity and supported
+RAN functions over that association. The SCTP handshake has four messages:
+
+| Message | Direction | Purpose |
+| --- | --- | --- |
+| INIT | gNB → RIC | Requests an association and proposes transport parameters |
+| INIT-ACK | RIC → gNB | Returns parameters and an integrity-protected state cookie |
+| COOKIE-ECHO | gNB → RIC | Returns the cookie to the RIC |
+| COOKIE-ACK | RIC → gNB | Confirms that the cookie was accepted |
+
+The cookie lets the listener defer full association state until the peer returns
+a valid token, helping resist spoofed connection requests. SCTP setup alone
+does not establish that the E2 application exchange succeeded; find the E2
+Setup request and response as well.
 
 **Lab report:** show the SCTP INIT/INIT-ACK/COOKIE-ECHO/COOKIE-ACK exchange and
 the E2 Setup request/response. Find the gNB identity and advertised RAN function
@@ -228,6 +246,12 @@ Start the xApp in terminal 3:
 
 ```bash
 sudo /opt/ai-ran/bin/start-xapp
+```
+
+Expected checkpoint:
+
+```text
+READY: xApp E42 connection; awaiting detector clients
 ```
 
 Wait two seconds after the readiness message, then stop the capture. Inspect it:
@@ -299,65 +323,167 @@ control request from xApp to RIC and from RIC to gNB, including acknowledgments.
 Find the two nominal 50/50 quotas. Request IDs can be translated between the
 two interfaces; correlate endpoints, timing, service, and payload as well.
 
-### Observe the AI loop
+### RF run: operate the measurements and observe the AI loop
 
-Start a control capture in terminal 1:
+Use the network you just started with RF detectors in both UPFs; keep its actors
+running. Stop the earlier captures and open a **fourth SSH terminal**. In this
+run, trace how anomaly reports influence slice quotas and any UE-release action,
+then relate those actions to the live measurements. The later heuristic run
+provides a baseline using the same xApp policy. Each run includes a pre-attack
+observation period.
 
-```bash
-sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/ai-control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090'
-```
+| Terminal | Role during measurement |
+| --- | --- |
+| 1 | UE1 receiver: live throughput |
+| 2 | UE2 receiver: live throughput |
+| 3 | Docker stats: live UPF CPU and memory |
+| 4 | Captures, traffic, attack launch, and xApp log |
 
-Start a report/user-plane capture in terminal 2:
+Read the timed steps before starting traffic. Each run has 75 seconds of
+background traffic and one 25-second attack. Keep the readouts visible and
+note how they change before, during, and after the attack.
 
-```bash
-sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/ai-traffic.pcap '(tcp port 8080 and host 192.168.70.1) or udp port 2152'
-```
+#### A. Prepare the result directory
 
-In terminal 3, generate normal ICMP traffic from both UEs:
-
-```bash
-sudo /opt/ai-ran/bin/send-normal
-```
-
-Read the reports in the logs:
-
-```bash
-less /var/log/ai-ran/ads1.log
-less /var/log/ai-ran/ads2.log
-less /var/log/ai-ran/xapp.log
-```
-
-Expect 30-packet normal windows and nominal 50/50 allocation. The window
-advances by ten packets. Now run the repository's original small Hping3 command
-for a fixed 25 seconds, while UE2 continues normal ICMP traffic:
+In terminal 4:
 
 ```bash
-sudo /opt/ai-ran/bin/run-attack
+sudo /opt/ai-ran/bin/prepare-rf-trial
 ```
 
-The wrapper uses the original arguments
-`hping3 -S -d 100 -a 12.2.1.2 12.2.1.1`, inside UE1, with a finite timeout.
-It is deliberately low-rate for inspecting the loop, not a saturated DoS
-performance benchmark. Both detectors need traffic for fresh xApp decisions.
+This checks the running RF setup, records configuration/routes, and creates a
+fresh result directory. It does **not** start traffic, captures, or an attack.
+The fixed path `/var/tmp/ai-ran/captures/comparison/current` points to this run.
+Previous runs are retained in timestamped directories.
 
-After the traffic script finishes, stop both captures. Inspect the sequence:
+#### B. Start the two receivers
+
+In terminal 1:
 
 ```bash
-/opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/ai-control.pcap
-less /var/tmp/ai-ran/captures/ai-control.pcap.messages.txt
-tshark -r /var/tmp/ai-ran/captures/ai-traffic.pcap -Y 'tcp.port == 8080 and tcp.len > 0' -V
-tshark -r /var/tmp/ai-ran/captures/ai-control.pcap -Y 'tcp.port == 9090 and tcp.len > 0' -V
+sudo ip netns exec ue1 stdbuf -oL -eL iperf3 -s -1 -B 12.2.1.2 -p 80 -i 1 --forceflush -f m 2>&1 | /opt/ai-ran/bin/record-ue1-throughput
 ```
 
-Read the two detector conversations as text. Because this capture starts before
-normal traffic and before the attack, its first two TCP streams are the detector
-streams; use the endpoints and SST/SD fields to identify their order:
+In terminal 2:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/ai-traffic.pcap -q -z follow,tcp,ascii,0
-tshark -r /var/tmp/ai-ran/captures/ai-traffic.pcap -q -z follow,tcp,ascii,1
-tshark -r /var/tmp/ai-ran/captures/ai-control.pcap -q -z follow,tcp,ascii,0
+sudo ip netns exec ue2 stdbuf -oL -eL iperf3 -s -1 -B 12.1.1.130 -p 80 -i 1 --forceflush -f m 2>&1 | /opt/ai-ran/bin/record-ue2-throughput
 ```
+
+Both should say they are listening on port 80. The recording helpers only
+timestamp/save the output and display it; `iperf3` performs the measurement.
+
+**Observe:** why can both servers bind port 80? Why will receiver-side goodput
+be more informative than the sending-rate setting?
+
+#### C. Observe UPF utilization
+
+In terminal 3:
+
+```bash
+docker stats --format '{{json .}}' oai-upf-slice1 oai-upf-slice2 | /opt/ai-ran/bin/record-upf-cpu
+```
+
+You will see each UPF's CPU percentage and memory use. Record the idle values
+before the traffic starts. This is container CPU utilization, the resource
+metric used in paper Figure 7.
+
+#### D. Start captures and legitimate traffic
+
+In terminal 4, start these two bounded captures. `&` leaves them running while
+you enter the next command; the two logs retain their capture/drop counts.
+
+```bash
+sudo timeout -s INT -k 3 95 tcpdump -i lo -n -U -w /var/tmp/ai-ran/captures/comparison/current/control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' > /var/tmp/ai-ran/captures/comparison/current/capture.log 2>&1 &
+sudo timeout -s INT -k 3 95 tcpdump -i demo-oai -n -U -w /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' > /var/tmp/ai-ran/captures/comparison/current/detector-capture.log 2>&1 &
+```
+
+Confirm both logs show `listening on` before proceeding:
+
+```bash
+cat /var/tmp/ai-ran/captures/comparison/current/capture.log
+cat /var/tmp/ai-ran/captures/comparison/current/detector-capture.log
+```
+
+Run the following commands promptly, one by one. The first records a timestamp
+only. The next three start the actual ping and TCP traffic:
+
+```bash
+sudo /opt/ai-ran/bin/mark-traffic-start
+sudo ip netns exec ue2 ping -n -D -O -i 0.2 -W 1 -w 75 192.168.70.145 > /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log 2>&1 &
+sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue1-sender.json 2>&1 &
+sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue2-sender.json 2>&1 &
+```
+
+`nsenter` runs the host's iperf client in the external DN's network namespace.
+These are two **downlink** streams, each capped at a requested 100 Mbit/s, using
+1,200-byte application write buffers. Actual goodput may be much lower.
+
+**Observe for about 15–20 seconds:** watch both receiver rates and UPF CPU.
+Read the latest classifications in terminal 4:
+
+```bash
+tail -n 12 /var/log/ai-ran/ads1.log
+tail -n 12 /var/log/ai-ran/ads2.log
+tail -n 12 /var/log/ai-ran/xapp.log
+```
+
+Record the pre-attack throughput, CPU, and nominal quotas. Are any legitimate
+packets classified as anomalous? Do not assume the baseline must be perfect.
+
+#### E. Launch the attack yourself
+
+In terminal 4, while the two downlinks are still running:
+
+```bash
+( sudo /opt/ai-ran/bin/mark-attack-start && sudo ip netns exec ue1 timeout -s INT -k 3 25 hping3 -q -S -s 333 -k -p 333 -d 0 -i u100 -c 250000 -I oaitun_ue1 192.168.70.145 ) > /var/tmp/ai-ran/captures/comparison/current/attack.log 2>&1 &
+tail -f /var/log/ai-ran/xapp.log
+```
+
+The marker records when you initiate the attack; Hping3 generates the packets.
+This is the lab's adapted zero-payload SYN workload, not a literal repository
+README attack command. Both methods use these same flags and destination.
+Requested rate is 10,000 packets/s; achieved rate can differ. Exit 124 from
+the timeout wrapper is expected.
+
+**Observe during the attack:** compare the two receiver rates, UPF CPU, and
+xApp messages. Look for quota changes and a release request. UE1 still has its
+background TCP stream, so its detector can see a mixture of legitimate packets
+and SYN traffic. A 100%-anomalous window and release are not guaranteed.
+
+**Observe after the attack stops:** do UE2's throughput and CPU recover?
+Does lower CPU mean protection succeeded, or could traffic have stalled?
+
+#### F. Finish recording, then inspect
+
+After the 75-second traffic runs, stop the log viewer with Ctrl+C in terminal 4
+and run `wait` there. It waits for that terminal's bounded background jobs,
+including the 95-second captures, to finish. Press Ctrl+C in terminals 1, 2,
+and 3 if the receiver/CPU commands are still running.
+
+```bash
+wait
+sudo /opt/ai-ran/bin/finish-trial
+```
+
+The helper saves actor logs and analyzes the recordings; it leaves the network
+running for inspection. Check its coverage/error flags. It preserves missing
+data and failed mitigation outcomes. If commands were started too late to cover
+the baseline and attack windows, report the incomplete measurement.
+
+```bash
+cat /var/tmp/ai-ran/captures/comparison/current/attack.log
+cat /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log
+/opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/comparison/current/control.pcap
+less /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
+tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,0
+tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,1
+tshark -r /var/tmp/ai-ran/captures/comparison/current/control.pcap -q -z follow,tcp,ascii,0
+```
+
+Identify the detector stream order by endpoint and SST/SD. If no release request
+occurred, the control capture may have no TCP stream to follow; record that
+absence rather than assuming a release.
 
 TCP payloads contain messages such as `sst:1,sd:1,normal:20,anomaly:10` and a
 separate `rrc release_rrc 1` command. Port 8080 does not make this custom count
@@ -373,7 +499,11 @@ date -Is
 docker exec oai-upf-slice1 date -Is
 ```
 
-Check endpoint state and connectivity:
+Check endpoint state and connectivity. Look for receipt of RRC Release in the
+UE1 log and removal of its context in the gNB log. If the release succeeded and
+the UE has not reconnected, UE1 should no longer deliver traffic to the DN;
+UE2 should retain connectivity. A failed ping alone cannot distinguish release
+from a zero quota or another failure, so use the endpoint logs as well:
 
 ```bash
 less /var/log/ai-ran/ue1.log
@@ -399,67 +529,173 @@ why a remaining TUN IP does not prove an active radio connection, and why
 nominal quotas are not throughput measurements. If an expected event is absent,
 report that absence and use the captures/logs to locate where the chain stopped.
 
-### Compare AI and the heuristic on held-out records
+### Heuristic run: repeat the same observations once
+
+This second live run provides a rule-based baseline for the anomaly-driven RAN
+control loop. Replace RF classification in **both UPFs** with our hand-written
+TCP-aware rule, then repeat the workload and measurements. Use it to explain
+how the choice of detector affects the same network's resource decisions, UE
+connectivity, useful throughput, latency/loss, and UPF CPU cost.
+
+#### What changes, and what stays the same?
+
+| Part of the experiment | RF run | Heuristic run |
+| --- | --- | --- |
+| Classifier inside each UPF | Saved Random Forest and preprocessor | Fixed TCP/flags/byte-count rule |
+| Traffic capture and feature extraction | Original UPF detector pipeline | Same pipeline |
+| Observation window | 30 packets, advancing by 10 | Same window and step |
+| Reporting | Normal/anomaly counts for every computed window | Same format and every-window reporting |
+| xApp and enforcement | Fixed quota policy, E42/E2 controls, telnet release path | Same policy and paths |
+| Offered workload | Two 75-second downlinks, UE2 ping, one 25-second UE1 SYN attack | Same commands, addresses, ports, and requested rates |
+
+The heuristic wrapper replaces the classification function in the original
+detector. It uses the existing extracted `protocol_type`, `flag`, `src_bytes`,
+and `dst_bytes`; it does not use the extracted `service` feature. It has no
+learned prediction model and does not adapt during the run. The xApp still
+receives classification counts and applies its existing policy.
+
+#### How the heuristic labels live packets
+
+A packet is labeled **anomalous only when all three conditions hold**:
+
+1. Its extracted protocol is TCP.
+2. Its extracted `src_bytes + dst_bytes` is at most 28.
+3. Its TCP flags contain **SYN without ACK**, or contain **RST** (with or without ACK).
+
+All other packets are labeled normal by this rule. Here, `src_bytes` is the TCP
+payload length and the existing extractor sets `dst_bytes = src_bytes`. Thus
+the byte condition means **TCP payload length at most 14 bytes**, excluding
+TCP/IP headers. It is not a measurement of bytes sent in two directions.
+
+The code retains 28 from this lab's earlier connection-record baseline; that
+calibration does not establish an optimal cutoff for this live TCP-only rule.
+
+SYN initiates a TCP connection, ACK acknowledges traffic, and RST resets or
+rejects a connection. Our attack sends zero-payload SYN packets, which match
+the rule. The flag check lets ordinary short ACK packets pass, while short
+connection attempts and resets are classified as anomalous. For example:
+
+| Observed packet | Rule's label | Reason |
+| --- | --- | --- |
+| TCP SYN, 0-byte payload | Anomalous | Small connection attempt without ACK |
+| TCP ACK, 4-byte payload | Normal | Neither SYN without ACK nor RST |
+| TCP SYN/ACK, 0-byte payload | Normal | ACK excludes the SYN condition; no RST |
+| TCP RST/ACK, 0-byte payload | Anomalous | RST satisfies the flag condition even with ACK |
+| TCP SYN, 14-byte payload | Anomalous | Extracted byte sum is 28, exactly the inclusive cutoff |
+| TCP SYN, 15-byte payload | Normal | Extracted byte sum is 30, above the cutoff |
+| UDP or ICMP | Normal | The TCP condition fails |
+
+This is a **per-packet signature**, not a SYN-rate meter or a tracker of completed
+TCP handshakes. It does not use the known attack address, port 333, or attack
+start time. Legitimate connection attempts and resets can therefore cause
+false alarms, while attacks outside this narrow signature can be missed.
+Keep the fixed rule throughout both measurements and record these limitations
+when interpreting the live results.
+
+Each UPF aggregates its labels into a 30-packet window and sends the normal and
+anomalous counts over TCP port 8080. After each report, it discards the oldest
+ten packets, retains twenty, and waits for ten new packets to complete the next
+window. Reporting every window does **not** mean reporting at a fixed time
+interval: packet arrival and processing speed determine when windows complete.
+Mixed legitimate and attack packets can produce intermediate anomaly ratios
+and quota changes; a release requires the xApp to receive a fully anomalous
+window. Matching individual SYN packets does not guarantee an immediate release.
+
+#### Restart with the heuristic detectors
+
+Finish the RF recording and its inspection first. Then reset the topology so
+the heuristic starts with fresh UE IDs, connections, and detector windows.
+Run these startup commands one by one in terminal 4, checking readiness each time:
 
 ```bash
-/opt/ai-ran/bin/compare-models
+sudo /opt/ai-ran/bin/stop-lab
+sudo /opt/ai-ran/bin/start-core
+sudo /opt/ai-ran/bin/start-ric
+sudo /opt/ai-ran/bin/start-gnb
+sudo /opt/ai-ran/bin/start-ue1
+sudo /opt/ai-ran/bin/start-ue2
+sudo /opt/ai-ran/bin/start-xapp
+sudo /opt/ai-ran/bin/start-heuristic-detectors
+sudo /opt/ai-ran/bin/prepare-heuristic-trial
 ```
 
-This evaluates the unchanged RF and the fixed byte rule on the same 22,544
-held-out records, without retraining or using the test labels to select the
-threshold. It prints both confusion matrices, accuracy, balanced accuracy,
-attack precision/recall/F1, and normal false-positive rate. The ten-second
-reporting delay has no effect on these offline predictions.
+`start-core` also recreates the external DN's namespace to clear old TCP sockets
+on the fixed measurement ports. The final command selects a new heuristic
+result directory; the RF files are preserved.
 
-**Lab report:** name the five features and the component performing inference.
-Explain why this offline accuracy is not a measured live-packet accuracy, and
-why changing quotas does not mean the model learned online. Identify one
-limitation of feature extraction or the two-client controller. Compare both
-methods on every reported metric: does the better method depend on the metric?
-
-### Main experiment: compare throughput, latency, and utilization
-
-Stop the manual captures and retain their files. Run the fixed paired experiment:
+Before starting the timed measurements, confirm the classifier and reporting
+mode in **both** detector logs:
 
 ```bash
-sudo /opt/ai-ran/bin/run-comparison
+grep -E 'TCP_FLAG_HEURISTIC|REPORT_INTERVAL_SECONDS' /var/log/ai-ran/ads1.log /var/log/ai-ran/ads2.log
 ```
 
-Allow approximately 30–45 minutes, including repeated startup and measurement.
-The runner preserves the preceding evidence, then resets the DN, core, radio,
-xApp, and detector state for each trial. It runs one clean control per method
-and three attack pairs in alternating order: RF/heuristic, heuristic/RF,
-RF/heuristic. All outcomes are retained, including unintended releases,
-incomplete measurements, no mitigation, and runtime faults.
+Both logs must identify `TCP_FLAG_HEURISTIC` and `REPORT_INTERVAL_SECONDS: 0.0`.
+Zero means every computed window is reported. The xApp startup and initial
+50/50 allocation should use the same control path you inspected in the RF run.
 
-| Setting | Fixed value |
-| --- | --- |
-| Measurement workload | 50 seconds, two TCP downlink streams capped at 100 Mbit/s each |
-| Throughput source | Actual receiver-side iperf3 intervals in each UE namespace |
-| Latency/loss | UE2 ICMP probes every 0.2 seconds |
-| Attack trials | Same bounded UE1 SYN workload, beginning near t=15 s |
-| Clean trials | Identical legitimate workload, no attack |
-| Main comparison window | [15,48) seconds; includes the response period |
-| Additional windows | Baseline [5,15), post-event [20,48), late [25,48) seconds |
-| Detector difference | RF every window versus fixed byte rule with ten-second reporting |
-| Utilization (paper Figure 7 metric) | CPU time of each complete UPF Docker container, including its detector |
-| Supplementary compute measurements | Host/process CPU counters, container memory, and detector RSS |
+#### Repeat the workload and follow the control loop
 
-The comparison workload is intentionally distinct from the earlier low-rate
-packet walkthrough. That walkthrough does not substitute for an RF performance
-trial, since it did not run the same throughput load and measurement schedule.
+Now repeat **[steps B–F of the RF run](#b-start-the-two-receivers) exactly once**, using the same four terminals
+and the same commands. The `current` path now points to the heuristic run, so
+you do not need to change any paths, traffic rates, ports, or attack flags.
+Use approximately the same 15–20-second pre-attack observation time in both
+runs, and record any timing deviations. Plot alignment does not remove every
+effect of different pre-attack histories.
 
-When the runner finishes, read its table:
+**Observe before the attack:** inspect both detector logs and the initial
+throughput/CPU readings. Ordinary TCP setup can include SYN packets, so do not
+assume all pre-attack labels will be normal. Do any false alarms cause quota
+changes or a premature release?
+
+**Observe during the attack:** follow UE1's counts, the xApp's quota decisions,
+and any release request. Relate changes to UE2's goodput and RTT/loss and to
+both UPFs' CPU use. Do the overlapping windows contain a mixture of legitimate
+and attack traffic? Use the actual reports rather than assuming 100% anomaly.
+
+**Observe after a release or the attack timeout:** distinguish a request from
+a confirmed radio release. Check whether UE1's active data path is interrupted
+and UE2 remains connected. A drop in UE1 throughput or UPF CPU can reflect the
+loss of UE1's legitimate traffic as well as mitigation. Record any unintended
+UE2 release, reconnection, stalled traffic, or absent release.
+
+**Lab report:** explain the heuristic's three conditions and why the zero-payload
+SYN attack matches them. Identify a legitimate packet it can misclassify and an
+attack pattern it can miss. Using this run's captures and logs, trace one
+detector report through the unchanged xApp policy to the observed quota or
+release behavior. State which UE lost connectivity, if any, and how you verified
+it. Relate these observations to the differences from your RF run.
+
+### Put the two runs side by side
+
+Use the pair to explain how detector output influenced slice-resource allocation
+and UE-release behavior during the attack. The comparison connects the observed
+control actions to UE2 service quality and UPF processing cost.
+
+After both runs are finished, generate the table and plots:
 
 ```bash
+sudo /opt/ai-ran/bin/plot-comparison
 less /var/tmp/ai-ran/state/comparison.md
 ```
 
-It prints the timestamped evidence directory under `/var/tmp/ai-ran/captures/`.
-That directory contains `comparison.md`, `summary.csv`, `campaign.json`, raw
-per-trial data/captures/logs, and PNG/SVG plots for throughput, latency, UPF CPU
-utilization, and detector memory. Export the bundle below and
-open the plots on your laptop. The runner leaves the network stopped.
+This command only processes saved recordings. It does not start another run.
+The printed pair directory contains `comparison.md`, `summary.csv`,
+`campaign.json`, PNG/SVG plots, and separate `rf/` and `heuristic/` evidence.
+Export the bundle below to view the plots on your laptop.
+
+Each method's baseline is the **ten seconds before its attack-start marker**.
+The attack-period mean uses the **following 25 seconds**. Plots align the two
+markers at zero, so human differences in launch time do not shift one trace
+relative to the other. Ping loss covers the complete ping run. The report
+flags insufficient coverage rather than treating missing observations as zero.
+Plots also show the recorded post-traffic period, and the report lists release
+request times, so a late unintended release is not hidden by the averaging window.
+
+You have performed **one paired classroom demonstration: one run per method**.
+There are no additional clean-control runs or repetitions; each run supplies
+its own pre-attack baseline. This is enough to explain the behavior observed
+in this lab, but not to establish repeatability or general superiority.
 
 #### Interpret utilization correctly
 
@@ -468,32 +704,28 @@ open the plots on your laptop. The runner leaves the network stopped.
   for both UPFs. Our two conditions are AI and a heuristic; the paper's
   conditions are defense enabled/disabled. This is a metric-aligned extension,
   not an exact replication of its numerical results.
-- **Container CPU:** consecutive cgroup CPU-time counters divided by elapsed
-  wall time give utilization. One fully busy logical CPU is 100%, matching
-  Docker's Linux convention; a multithreaded container can exceed 100%. The
+- **Container CPU:** the timestamped `docker stats` stream reports utilization.
+  One fully busy logical CPU is 100%, matching Docker's Linux convention;
+  a multithreaded container can exceed 100%. The
   paper does not specify its normalization. CPU utilization is not a direct
   power or energy measurement.
 - **Quotas:** E2 PRB values are configured allocation policies, not the CPU
   utilization metric. Actual physical radio occupancy is outside this comparison.
-- **CPU:** host CPU is a percentage of the whole machine; each process is a
-  percentage of one logical CPU. The two detector CPU values are summed and
-  may exceed 100%. This measures capture/extraction/classification/logging and
-  reporting overhead together, not inference alone.
-- **Memory:** host usage is `MemTotal - MemAvailable`; container cgroup memory
-  includes cache; detector memory sums their resident sets. Shared pages may be
-  counted twice in that sum.
+- **Measurement scope:** each UPF's CPU includes forwarding and its detector's
+  capture/extraction/classification/logging/reporting work, not inference alone.
+- **Memory:** the plots use Docker CLI-reported container memory, including its
+  cache adjustment. This is not an individual detector's resident-set size.
 - **Missing values:** NA or gaps mean missing measurements, not zero load or
   zero latency. RTT describes received replies; always also report packet loss.
 
 **Lab report:** present side-by-side throughput, RTT/loss, UPF CPU utilization,
-and supplementary memory plots. Include all three pairs, clean controls, coverage flags,
+and supplementary memory plots. Include both runs, their baselines, coverage flags,
 and unintended releases. Use actual attack-onset events when discussing release
-delay; time since capture start is not detection latency. Explain whether AI's
-advantages justify its compute cost, and whether differences come from the rule,
-reporting cadence, or control policy. Higher utilization is not automatically
+delay; time since capture start is not detection latency. Explain the measured
+performance and compute-cost tradeoffs, and relate differences to classification,
+processing, and the shared control policy. Higher utilization is not automatically
 better: relate it to useful UE2 goodput and latency. Report ties and heuristic
-wins as well as AI wins. Three pairs are descriptive observations, not a
-statistical guarantee of superiority.
+wins as well as AI wins. State explicitly that this is one run per method.
 
 ### Export and stop
 
@@ -519,15 +751,28 @@ will overwrite that capture, so export evidence before repeating it.
 
 ## Submit
 
-Submit your annotated architecture, connection sequences, inference/control
-evidence chain, offline classifier table, live AI-versus-heuristic comparisons
-of throughput/latency/utilization, interpretation answers, source/profile revision,
+Begin with an evidence-based explanation of the AI-for-RAN control loop during
+the DoS attack: where classification occurs, how reports drive the xApp's policy,
+and what changes the gNB actually enforces. Use the heuristic run as a baseline
+when interpreting the RF run's behavior.
+
+Submit your annotated architecture, connection sequences, classification/control
+evidence chain, heuristic explanation, live AI-versus-heuristic comparisons
+of throughput/latency/utilization, UE-release and connectivity evidence,
+interpretation answers, source/profile revision,
 packet captures, and relevant logs. Distinguish directly decoded messages, endpoint observations,
 and conclusions. This is a single-node RFsim exploration, not an OTA or
 production-security validation.
 
 The workflow is inspired by Fraida Fund's
 [Exploring the 5G core network](https://witestlab.poly.edu/blog/exploring-the-5g-core-network/).
-The implementation builds on Tsourdinis et al.'s
-[AI-driven O-RAN experiment](https://doi.org/10.1145/3636534.3697311).
 Profile setup and operating notes are in [ai-ran/README.md](../ai-ran/README.md).
+
+## References
+
+<a id="reference-1"></a>**[1]** T. Tsourdinis, N. Makris, T. Korakis, and S. Fdida,
+“AI-Driven Network Intrusion Detection and Resource Allocation in Real-World
+O-RAN 5G Networks,” in *Proceedings of the 30th Annual International Conference
+on Mobile Computing and Networking (ACM MobiCom)*, 2024, pp. 1842–1849.
+[DOI: 10.1145/3636534.3697311](https://doi.org/10.1145/3636534.3697311).
+[Code and saved model](https://github.com/teo-tsou/oai-anomaly-detection).

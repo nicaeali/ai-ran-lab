@@ -111,7 +111,9 @@ def core():
     if existing.returncode == 0:
         raise RuntimeError("Existing radio/controller actors must be stopped in their owning runtime first:\n" + existing.stdout)
     record(core=True, actors=[], attack_run=False, detector=None)
-    run(COMPOSE + ["up", "-d", "mysql", "oai_ext_dn"])
+    run(COMPOSE + ["up", "-d", "mysql"])
+    # A fresh DN namespace clears old sockets on the fixed measurement ports.
+    run(COMPOSE + ["up", "-d", "--no-deps", "--force-recreate", "oai_ext_dn"])
     run(COMPOSE + ["stop", "oai_nrf_slice12", *NFS])
     run(COMPOSE + ["up", "-d", "--no-deps", "--force-recreate", "oai_nrf_slice12"])
     wait_for("NRF API", lambda: registered("SMF") is not None)
@@ -170,17 +172,19 @@ def xapp():
 
 def detectors(detector="rf"):
     need("xapp")
-    if detector not in ("rf", "byte-periodic"):
+    if detector not in ("rf", "byte", "byte-periodic", "tcp-flags"):
         raise RuntimeError("Unknown classroom detector")
     if any(session(f"ads{number}") for number in (1, 2)):
         raise RuntimeError("Detectors are already connected; use a fresh staged startup to change methods")
     record(detector=detector)
     for number in (1, 2):
         command = [f"anomaly-detection-server-slice{number}.py"]
-        if detector == "byte-periodic":
+        if detector != "rf":
             run(["docker", "cp", REPO / "powder/byte-heuristic-detector.py",
                  f"oai-upf-slice{number}:/app/byte-heuristic-detector.py"])
-            command = ["byte-heuristic-detector.py", "--slice", str(number), "--report-interval", "10"]
+            command = ["byte-heuristic-detector.py", "--slice", str(number),
+                       "--report-interval", "10" if detector == "byte-periodic" else "0",
+                       "--rule", "tcp-flags" if detector == "tcp-flags" else "byte"]
         spawn(f"ads{number}", ["docker", "exec", "-w", "/app", f"oai-upf-slice{number}", "python3", "-u",
                                *command])
         wait_for(f"detector {number} TCP connection", lambda: contains("xapp", f"Connection accepted from client {number}"))
@@ -265,7 +269,7 @@ def export_results():
     with tempfile.TemporaryDirectory(prefix="snapshot-", dir=folder) as temporary:
         snapshot = Path(temporary)
         for source in (Path("/var/tmp/ai-ran/captures"), LOGS):
-            shutil.copytree(source, snapshot / source.relative_to("/"))
+            shutil.copytree(source, snapshot / source.relative_to("/"), symlinks=True)
         metadata = snapshot / "opt/ai-ran"
         metadata.mkdir(parents=True)
         for name in ("setup-manifest.json", "runtime-update.json"):
@@ -280,7 +284,8 @@ def export_results():
 
 def main():
     actions = {"core": core, "ric": ric, "gnb": gnb, "ue1": lambda: ue(1), "ue2": lambda: ue(2),
-               "xapp": xapp, "detectors": detectors, "heuristic": lambda: detectors("byte-periodic"),
+               "xapp": xapp, "detectors": detectors, "heuristic": lambda: detectors("tcp-flags"),
+               "heuristic-periodic": lambda: detectors("byte-periodic"),
                "normal": traffic, "attack": lambda: traffic(True),
                "stop": stop, "status": status, "export": export_results}
     if len(sys.argv) != 2 or sys.argv[1] not in actions:

@@ -91,8 +91,10 @@ def main():
                 if match:
                     key = (packet[IP].src, packet[TCP].sport, packet[TCP].seq, payload)
                     commands.setdefault(key, {"ue_id": int(match[1]), "time": float(packet.time) - origin})
-    phases = {"baseline": (5, config["attack_start"]),
-              "post_event": (config["attack_start"] + 5, duration - 2)}
+    phases = config.get("phase_windows", {"baseline": (5, config["attack_start"]),
+                                         "post_event": (config["attack_start"] + 5, duration - 2)})
+    if any(right <= left for left, right in phases.values()):
+        raise ValueError("Measurement windows must have positive duration")
     metrics = {}
     for name, (left, right) in phases.items():
         phase = {"window_seconds": [left, right]}
@@ -147,7 +149,7 @@ def main():
         baseline = metrics["baseline"]
         if baseline[f"ue{ue}_covered_seconds"] < 5 or (baseline[f"ue{ue}_mbps"] or 0) < 1:
             report["measurement_errors"].append(f"UE{ue} lacks a valid active baseline stream")
-        if metrics["post_event"][f"ue{ue}_covered_seconds"] < 0.75 * (duration - 2 - config["attack_start"] - 5):
+        if metrics["post_event"][f"ue{ue}_covered_seconds"] < 0.75 * (phases["post_event"][1] - phases["post_event"][0]):
             report["measurement_errors"].append(f"UE{ue} receiver interval coverage is incomplete after the event")
         sender = (root / f"ue{ue}-sender.json").read_text()
         if "Address already in use" in sender or "unable to connect" in sender:
@@ -166,9 +168,13 @@ def main():
         report["detector_windows"] = {}
         for ue in (1, 2):
             text = (root / f"ads{ue}.log").read_text()
-            is_byte = "BYTE_HEURISTIC:" in text
-            if is_byte != (config["detector"] != "rf"):
+            is_heuristic = "BYTE_HEURISTIC:" in text or "TCP_FLAG_HEURISTIC:" in text
+            if is_heuristic != (config["detector"] != "rf"):
                 raise ValueError(f"UE{ue} detector identity does not match configuration")
+            if config["detector"] == "tcp-flags" and "TCP_FLAG_HEURISTIC:" not in text:
+                raise ValueError("Expected the TCP-aware heuristic")
+            if config["detector"] in ("byte", "byte-periodic") and "BYTE_HEURISTIC:" not in text:
+                raise ValueError("Expected the historical byte-only heuristic")
             windows = []
             for match in re.finditer(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+) - Window results: (\d+) Normal, (\d+) Anomaly", text, re.MULTILINE):
                 stamp = datetime.strptime(match[1], "%Y-%m-%d %H:%M:%S,%f").replace(tzinfo=ZoneInfo("Europe/Paris")).timestamp()
