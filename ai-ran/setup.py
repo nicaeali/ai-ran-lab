@@ -187,11 +187,9 @@ def prepare():
         raise RuntimeError("Preparation requires root")
     LOGS.mkdir(parents=True, exist_ok=True)
     LAB.mkdir(parents=True, exist_ok=True)
-    ready = LAB / "READY"
     active = subprocess.run(["pgrep", "-af", r"(^|/)(nr-softmodem|nr-uesoftmodem|nearRT-RIC|xapp_rc_slice_ctrl)( |$)"], capture_output=True, text=True)
     if active.returncode == 0:
         raise RuntimeError("Stop active radio/controller actors before preparation:\n" + active.stdout)
-    ready.unlink(missing_ok=True)
     mirror = install_packages()
     docker_users = configure_docker_access()
     copy_lab_source()
@@ -301,8 +299,6 @@ def prepare():
                            for p in sorted((REPO / "ai-ran").rglob("*")) if p.is_file() and "__pycache__" not in p.parts}}
     (LAB / "setup-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (LOGS / "setup-failure.txt").unlink(missing_ok=True)
-    ready.write_text("Prepared: " + manifest["prepared_utc"] + "\nActors are stopped. Follow docs/EXPLORING_AI_RAN.md.\n"
-                     "Docker users: " + ", ".join(docker_users) + "\nReconnect SSH sessions opened before setup completed.\n")
     print("READY: Exploring the AI-RAN preparation finished. Network actors have not been started.", flush=True)
 
 

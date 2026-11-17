@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Generated from the student Markdown; source SHA256: eeaa4537b068382951888d0384a321ae9b4ab92780c6e9e99506f0cb2f3ec553 -->
+<!-- Generated from the student Markdown; source SHA256: f4c3a4d419b264f92c805ef7a53357dd6590d11b544d581c31c80c97f0352c2d -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -64,6 +64,9 @@
     pre code { background:transparent; padding:0; border-radius:0; font-size:inherit; }
     .reference-panel { background:#fbfbfc; }
     .reference-panel .code-bar { background:#f2f4f5; }
+    .article-body > .example-output-panel { grid-column:1/-1; width:100%; max-width:1100px; margin-left:auto; margin-right:auto; }
+    .example-output-panel pre { white-space:pre; overflow-wrap:normal; }
+    .example-output-panel pre code { overflow-wrap:normal; }
     .terminal-note { color:var(--purple); font-weight:650; font-size:17px; margin-bottom:12px !important; }
     .table-scroll { max-width:100%; overflow-x:auto; margin:5px 0 28px; }
     table { width:100%; border-collapse:collapse; font-size:16px; line-height:1.55; }
@@ -119,6 +122,8 @@
       h2,h3,h4 { break-after:avoid; margin:22pt 0 12pt; }
       h2 { font-size:20pt; } h3 { font-size:16pt; } h4 { font-size:13pt; }
       pre { font-size:8pt; padding:10pt; white-space:pre-wrap; overflow-wrap:anywhere; }
+      .example-output-panel pre { white-space:pre-wrap; overflow-wrap:anywhere; overflow:visible; }
+      .example-output-panel pre code { overflow-wrap:anywhere; }
       .code-panel,.lab-report,.observe,figure { break-inside:avoid; }
       .code-bar { min-height:0; padding:5pt 10pt; font-size:8pt; }
       .lab-report p,.observe p { font-size:11pt; }
@@ -203,29 +208,37 @@ lab. In the portal, choose <strong>Experiments → Reserve Resources</strong>, t
 <h3 id="instantiate-the-profile">Instantiate the profile<a aria-label="Link to section: Instantiate the profile" class="heading-anchor" href="#instantiate-the-profile">#</a></h3>
 <p>At your reservation time, open the instructor-provided POWDER profile link for <strong>Exploring-the-AI-RAN</strong>. Read the profile description and continue to the project selection page. Select your course project. On the schedule page, select your active reservation so the experiment ends within your reserved time, then finish instantiation.</p>
 <p>Wait for the node to be <strong>Ready</strong> and its <strong>Startup</strong> state to be <strong>Finished</strong>. The startup service installs dependencies, places the repositories under <code>/opt</code>, and builds the software. Node allocation finishing does not mean compilation has finished.</p>
-<p>Use the portal's SSH command. Confirm preparation:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 1" class="copy-button" data-copy="command-01" type="button">Copy</button></div><pre><code class="language-bash" id="command-01">cat /opt/ai-ran/READY
-</code></pre></div>
-<p>Setup adds the node's existing regular login accounts to the <code>docker</code> group.
-If you opened an SSH session before preparation finished, disconnect and
-reconnect that session to load its new group membership. Verify Docker access:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 2" class="copy-button" data-copy="command-02" type="button">Copy</button></div><pre><code class="language-bash" id="command-02">docker info --format '{{.ServerVersion}}'
-</code></pre></div>
-<p>The lab uses fixed scripts with no student-selectable arguments. They start
-background actors and return after readiness checks. Use <strong>three SSH sessions</strong>:
-terminal 1 and terminal 2 for captures/logs, and terminal 3 for startup/traffic.
-Ctrl+C stops a capture or log viewer, not the background network actors.</p>
+<p>Open <strong>three SSH sessions</strong> using the portal's SSH command: terminals 1 and 2 for captures/logs, and terminal 3 for startup/traffic.</p>
 <h3 id="start-the-core">Start the core<a aria-label="Link to section: Start the core" class="heading-anchor" href="#start-the-core">#</a></h3>
 <p class="terminal-note">In terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 3" class="copy-button" data-copy="command-03" type="button">Copy</button></div><pre><code class="language-bash" id="command-03">sudo /opt/ai-ran/bin/start-core
-docker ps
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 1" class="copy-button" data-copy="command-01" type="button">Copy</button></div><pre><code class="language-bash" id="command-01">sudo /opt/ai-ran/bin/start-core
 </code></pre></div>
 <p>Expected checkpoint from the startup helper:</p>
 <div class="code-panel reference-panel"><div class="code-bar"><span class="code-kind">Expected output</span></div><pre><code class="language-text">READY: 12 healthy core containers
 </code></pre></div>
-<p>Your container IDs will differ, but <code>docker ps</code> should show twelve running,
-healthy containers. The custom UPFs already contain the
-model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
+<p>List the running containers:</p>
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 2" class="copy-button" data-copy="command-02" type="button">Copy</button></div><pre><code class="language-bash" id="command-02">docker ps
+</code></pre></div>
+<p>Example output from <code>docker ps</code>:</p>
+<div class="code-panel reference-panel example-output-panel" data-output="example"><div class="code-bar"><span class="code-kind">Example output</span></div><pre aria-label="Example terminal output; scroll horizontally to read all columns" role="region" tabindex="0"><code class="language-text">CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                    PORTS                                    NAMES
+3b80e797ac5c   2d70f1399931   "/openair-upf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   2152/udp, 8805/udp, 8080/tcp             oai-upf-slice1
+d1ab08642a37   8254e9b557c4   "/openair-upf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   2152/udp, 8805/udp, 8080/tcp             oai-upf-slice2
+6587a0ae0b7c   fd533bc2c096   "/openair-smf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 8805/udp               oai-smf-slice1
+a02a730aadeb   fd533bc2c096   "/openair-smf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 8805/udp               oai-smf-slice2
+819503e4411e   7e588f0fbfa7   "/openair-amf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 9090/tcp, 38412/sctp   oai-amf
+2f7f6d6f4ca2   e4f211d9cc88   "/openair-ausf/bin/o…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-ausf
+3b6ae61f341a   5361ca3c9a5b   "/openair-udm/bin/oa…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-udm
+905a2f3d726a   53cdabbce16e   "/openair-nssf/bin/o…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-nssf
+e83254004cc4   1571393477ab   "/openair-udr/bin/oa…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-udr
+3c2924421d08   8d561faf9a13   "/openair-nrf/bin/oa…"   22 seconds ago   Up 22 seconds (healthy)   80/tcp, 8080/tcp, 9090/tcp               oai-nrf-slice12
+5f6435dd748f   3f9ab2e401d2   "/bin/bash -c ' ipta…"   23 seconds ago   Up 22 seconds (healthy)                                            oai-ext-dn
+a5e86a571a49   7dcddc01f13b   "docker-entrypoint.s…"   23 seconds ago   Up 23 seconds (healthy)   3306/tcp, 33060/tcp                      mysql
+</code></pre></div>
+<p>All twelve rows show running, healthy containers. Use <code>NAMES</code> to identify the
+services; <code>IMAGE</code> shows image IDs in this example. Your container IDs and elapsed
+times will differ. Scroll horizontally to see the remaining columns.</p>
+<p>The custom UPFs already contain the model and original anomaly-detection
+scripts. The core uses two SMFs/UPFs with
 distinct slices. NSSF is deployed, but this snapshot uses direct NRF discovery
 for SMF selection in this fixed core configuration.</p>
 <p>The core separates control-plane functions from packet forwarding. Identify
@@ -251,55 +264,32 @@ these roles in the container list:</p>
 <td>Forward user traffic; each custom container also runs a traffic detector</td>
 </tr>
 <tr>
-<td>NRF</td>
-<td>Lets network functions register and discover other functions</td>
-</tr>
-<tr>
-<td>AUSF, UDM, UDR</td>
-<td>Support authentication, subscriber management, and subscriber data</td>
-</tr>
-<tr>
-<td>NSSF</td>
-<td>Deployed, but bypassed for SMF selection in this fixed configuration</td>
-</tr>
-<tr>
-<td>MySQL</td>
-<td>Stores the supplied subscriber database</td>
-</tr>
-<tr>
 <td>External DN</td>
 <td>Provides the data-network endpoint used by the software UEs</td>
 </tr>
 </tbody>
 </table></div>
-<blockquote>
-<p><strong>Tip:</strong> If the readiness check fails, inspect the container logs before
-proceeding. The <a href="https://github.com/nicaeali/ai-ran-lab/blob/main/ai-ran/README.md">setup notes</a> describe recovery from the
-observed NRF startup assertion.</p>
-</blockquote>
-<aside aria-label="Lab report question 1" class="lab-report" id="lab-report-1"><span class="callout-label">Lab report · 1</span><p> save the command/output showing core health. Identify the AMF,
-NRF, two SMFs, two UPFs, and external-DN container. State which components run
-ML inference and which will enforce RAN changes.</p></aside>
+<aside aria-label="Lab report question 1" class="lab-report" id="lab-report-1"><span class="callout-label">Lab report · 1</span><p> save the command/output showing core health. Identify the AMF, NRF, two SMFs, two UPFs, and external-DN container. State which components run ML inference and which will enforce RAN changes.</p></aside>
 <h3 id="observe-gnbric-attachment">Observe gNB–RIC attachment<a aria-label="Link to section: Observe gNB–RIC attachment" class="heading-anchor" href="#observe-gnbric-attachment">#</a></h3>
 <p>Start the RIC in terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 4" class="copy-button" data-copy="command-04" type="button">Copy</button></div><pre><code class="language-bash" id="command-04">sudo /opt/ai-ran/bin/start-ric
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 3" class="copy-button" data-copy="command-03" type="button">Copy</button></div><pre><code class="language-bash" id="command-03">sudo /opt/ai-ran/bin/start-ric
 sudo ss -lnp -A sctp
 </code></pre></div>
 <p>Before starting the gNB, capture in terminal 1:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 5" class="copy-button" data-copy="command-05" type="button">Copy</button></div><pre><code class="language-bash" id="command-05">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-ric.pcap 'sctp port 36421'
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 4" class="copy-button" data-copy="command-04" type="button">Copy</button></div><pre><code class="language-bash" id="command-04">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-ric.pcap 'sctp port 36421'
 </code></pre></div>
 <p>Watch the RIC log in terminal 2:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 6" class="copy-button" data-copy="command-06" type="button">Copy</button></div><pre><code class="language-bash" id="command-06">tail -f /var/log/ai-ran/ric.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 5" class="copy-button" data-copy="command-05" type="button">Copy</button></div><pre><code class="language-bash" id="command-05">tail -f /var/log/ai-ran/ric.log
 </code></pre></div>
 <p>Start the gNB in terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 7" class="copy-button" data-copy="command-07" type="button">Copy</button></div><pre><code class="language-bash" id="command-07">sudo /opt/ai-ran/bin/start-gnb
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 6" class="copy-button" data-copy="command-06" type="button">Copy</button></div><pre><code class="language-bash" id="command-06">sudo /opt/ai-ran/bin/start-gnb
 </code></pre></div>
 <p>Expected checkpoint:</p>
 <div class="code-panel reference-panel"><div class="code-bar"><span class="code-kind">Expected output</span></div><pre><code class="language-text">READY: gNB E2 setup and RRC module
 </code></pre></div>
 <p>After the gNB readiness message, wait two seconds, then stop the capture and log viewer with Ctrl+C
 in their respective terminals. Inspect the saved capture:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 8" class="copy-button" data-copy="command-08" type="button">Copy</button></div><pre><code class="language-bash" id="command-08">tshark -r /var/tmp/ai-ran/captures/connect-ric.pcap -Y sctp
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 7" class="copy-button" data-copy="command-07" type="button">Copy</button></div><pre><code class="language-bash" id="command-07">tshark -r /var/tmp/ai-ran/captures/connect-ric.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-ric.pcap
 less /var/tmp/ai-ran/captures/connect-ric.pcap.messages.txt
 </code></pre></div>
@@ -353,10 +343,10 @@ packets. Additional heartbeat paths can use other addresses on this same host;
 they do not necessarily represent additional RIC instances.</p>
 <h3 id="attach-both-ues-and-observe-the-data-path">Attach both UEs and observe the data path<a aria-label="Link to section: Attach both UEs and observe the data path" class="heading-anchor" href="#attach-both-ues-and-observe-the-data-path">#</a></h3>
 <p>Capture in terminal 1:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 9" class="copy-button" data-copy="command-09" type="button">Copy</button></div><pre><code class="language-bash" id="command-09">sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/connect-ues.pcap 'sctp port 38412 or udp port 2152'
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 8" class="copy-button" data-copy="command-08" type="button">Copy</button></div><pre><code class="language-bash" id="command-08">sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/connect-ues.pcap 'sctp port 38412 or udp port 2152'
 </code></pre></div>
 <p>Start UE1, then UE2, in terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 10" class="copy-button" data-copy="command-10" type="button">Copy</button></div><pre><code class="language-bash" id="command-10">sudo /opt/ai-ran/bin/start-ue1
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 9" class="copy-button" data-copy="command-09" type="button">Copy</button></div><pre><code class="language-bash" id="command-09">sudo /opt/ai-ran/bin/start-ue1
 sudo /opt/ai-ran/bin/start-ue2
 sudo ip -n ue1 -br address
 sudo ip -n ue2 -br address
@@ -364,11 +354,11 @@ sudo ip -n ue2 -br address
 <p>Expected PDU addresses are UE1 <code>12.2.1.2</code> and UE2 <code>12.1.1.130</code>. Both namespaces
 use the interface name <code>oaitun_ue1</code>. The scripts verify attachment and a DN ping.
 Generate one additional exchange per UE:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 11" class="copy-button" data-copy="command-11" type="button">Copy</button></div><pre><code class="language-bash" id="command-11">sudo ip netns exec ue1 ping -c 1 192.168.70.145
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 10" class="copy-button" data-copy="command-10" type="button">Copy</button></div><pre><code class="language-bash" id="command-10">sudo ip netns exec ue1 ping -c 1 192.168.70.145
 sudo ip netns exec ue2 ping -c 1 192.168.70.145
 </code></pre></div>
 <p>Stop the capture with Ctrl+C. Inspect it:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 12" class="copy-button" data-copy="command-12" type="button">Copy</button></div><pre><code class="language-bash" id="command-12">tshark -r /var/tmp/ai-ran/captures/connect-ues.pcap -Y ngap
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 11" class="copy-button" data-copy="command-11" type="button">Copy</button></div><pre><code class="language-bash" id="command-11">tshark -r /var/tmp/ai-ran/captures/connect-ues.pcap -Y ngap
 tshark -r /var/tmp/ai-ran/captures/connect-ues.pcap -Y 'gtp and icmp' -V
 </code></pre></div>
 <aside aria-label="Lab report question 3" class="lab-report" id="lab-report-3"><span class="callout-label">Lab report · 3</span><p> show one UE's attachment-related NGAP exchange and one GTP-U
@@ -376,21 +366,21 @@ packet carrying ICMP. Identify outer tunnel endpoints and inner UE/DN IPs.
 Explain why identical interface names in two namespaces do not conflict.</p></aside>
 <h3 id="observe-xappric-registration">Observe xApp–RIC registration<a aria-label="Link to section: Observe xApp–RIC registration" class="heading-anchor" href="#observe-xappric-registration">#</a></h3>
 <p>Capture in terminal 1:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 13" class="copy-button" data-copy="command-13" type="button">Copy</button></div><pre><code class="language-bash" id="command-13">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-xapp.pcap 'sctp port 36422'
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 12" class="copy-button" data-copy="command-12" type="button">Copy</button></div><pre><code class="language-bash" id="command-12">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-xapp.pcap 'sctp port 36422'
 </code></pre></div>
 <p>Start the xApp in terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 14" class="copy-button" data-copy="command-14" type="button">Copy</button></div><pre><code class="language-bash" id="command-14">sudo /opt/ai-ran/bin/start-xapp
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 13" class="copy-button" data-copy="command-13" type="button">Copy</button></div><pre><code class="language-bash" id="command-13">sudo /opt/ai-ran/bin/start-xapp
 </code></pre></div>
 <p>Expected checkpoint:</p>
 <div class="code-panel reference-panel"><div class="code-bar"><span class="code-kind">Expected output</span></div><pre><code class="language-text">READY: xApp E42 connection; awaiting detector clients
 </code></pre></div>
 <p>Wait two seconds after the readiness message, then stop the capture. Inspect it:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 15" class="copy-button" data-copy="command-15" type="button">Copy</button></div><pre><code class="language-bash" id="command-15">tshark -r /var/tmp/ai-ran/captures/connect-xapp.pcap -Y sctp
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 14" class="copy-button" data-copy="command-14" type="button">Copy</button></div><pre><code class="language-bash" id="command-14">tshark -r /var/tmp/ai-ran/captures/connect-xapp.pcap -Y sctp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/connect-xapp.pcap
 less /var/tmp/ai-ran/captures/connect-xapp.pcap.messages.txt
 </code></pre></div>
 <p>Also inspect the xApp's log:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 16" class="copy-button" data-copy="command-16" type="button">Copy</button></div><pre><code class="language-bash" id="command-16">less /var/log/ai-ran/xapp.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 15" class="copy-button" data-copy="command-15" type="button">Copy</button></div><pre><code class="language-bash" id="command-15">less /var/log/ai-ran/xapp.log
 </code></pre></div>
 <aside aria-label="Lab report question 4" class="lab-report" id="lab-report-4"><span class="callout-label">Lab report · 4</span><p> show E42 Setup request/response, the assigned xApp ID, and the
 registered E2 node information. Compare the 36421 and 36422 associations.
@@ -404,16 +394,16 @@ the application protocol.</p>
 <h3 id="connect-the-detectors-and-observe-initial-slice-control">Connect the detectors and observe initial slice control<a aria-label="Link to section: Connect the detectors and observe initial slice control" class="heading-anchor" href="#connect-the-detectors-and-observe-initial-slice-control">#</a></h3>
 <p>Start these two captures before starting the detectors.</p>
 <p class="terminal-note">Terminal 1:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 17" class="copy-button" data-copy="command-17" type="button">Copy</button></div><pre><code class="language-bash" id="command-17">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/detector-control.pcap 'sctp port 36421 or sctp port 36422'
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 16" class="copy-button" data-copy="command-16" type="button">Copy</button></div><pre><code class="language-bash" id="command-16">sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/detector-control.pcap 'sctp port 36421 or sctp port 36422'
 </code></pre></div>
 <p class="terminal-note">Terminal 2:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 18" class="copy-button" data-copy="command-18" type="button">Copy</button></div><pre><code class="language-bash" id="command-18">sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/detector-connect.pcap 'tcp port 8080 and host 192.168.70.1'
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 17" class="copy-button" data-copy="command-17" type="button">Copy</button></div><pre><code class="language-bash" id="command-17">sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/detector-connect.pcap 'tcp port 8080 and host 192.168.70.1'
 </code></pre></div>
 <p class="terminal-note">Terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 19" class="copy-button" data-copy="command-19" type="button">Copy</button></div><pre><code class="language-bash" id="command-19">sudo /opt/ai-ran/bin/start-detectors
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 18" class="copy-button" data-copy="command-18" type="button">Copy</button></div><pre><code class="language-bash" id="command-18">sudo /opt/ai-ran/bin/start-detectors
 </code></pre></div>
 <p>After the initial control acknowledgment, stop both captures. Inspect them:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 20" class="copy-button" data-copy="command-20" type="button">Copy</button></div><pre><code class="language-bash" id="command-20">tshark -r /var/tmp/ai-ran/captures/detector-connect.pcap -Y tcp
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 19" class="copy-button" data-copy="command-19" type="button">Copy</button></div><pre><code class="language-bash" id="command-19">tshark -r /var/tmp/ai-ran/captures/detector-connect.pcap -Y tcp
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/detector-control.pcap
 less /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
 </code></pre></div>
@@ -466,7 +456,7 @@ background traffic and one 25-second attack. Keep the readouts visible and
 note how they change before, during, and after the attack.</p>
 <h4 id="a-prepare-the-result-directory">A. Prepare the result directory<a aria-label="Link to section: A. Prepare the result directory" class="heading-anchor" href="#a-prepare-the-result-directory">#</a></h4>
 <p class="terminal-note">In terminal 4:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 21" class="copy-button" data-copy="command-21" type="button">Copy</button></div><pre><code class="language-bash" id="command-21">sudo /opt/ai-ran/bin/prepare-rf-trial
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 20" class="copy-button" data-copy="command-20" type="button">Copy</button></div><pre><code class="language-bash" id="command-20">sudo /opt/ai-ran/bin/prepare-rf-trial
 </code></pre></div>
 <p>This checks the running RF setup, records configuration/routes, and creates a
 fresh result directory. It does <strong>not</strong> start traffic, captures, or an attack.
@@ -474,10 +464,10 @@ The fixed path <code>/var/tmp/ai-ran/captures/comparison/current</code> points t
 Previous runs are retained in timestamped directories.</p>
 <h4 id="b-start-the-two-receivers">B. Start the two receivers<a aria-label="Link to section: B. Start the two receivers" class="heading-anchor" href="#b-start-the-two-receivers">#</a></h4>
 <p class="terminal-note">In terminal 1:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 22" class="copy-button" data-copy="command-22" type="button">Copy</button></div><pre><code class="language-bash" id="command-22">sudo ip netns exec ue1 stdbuf -oL -eL iperf3 -s -1 -B 12.2.1.2 -p 80 -i 1 --forceflush -f m 2&gt;&amp;1 | /opt/ai-ran/bin/record-ue1-throughput
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 21" class="copy-button" data-copy="command-21" type="button">Copy</button></div><pre><code class="language-bash" id="command-21">sudo ip netns exec ue1 stdbuf -oL -eL iperf3 -s -1 -B 12.2.1.2 -p 80 -i 1 --forceflush -f m 2&gt;&amp;1 | /opt/ai-ran/bin/record-ue1-throughput
 </code></pre></div>
 <p class="terminal-note">In terminal 2:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 23" class="copy-button" data-copy="command-23" type="button">Copy</button></div><pre><code class="language-bash" id="command-23">sudo ip netns exec ue2 stdbuf -oL -eL iperf3 -s -1 -B 12.1.1.130 -p 80 -i 1 --forceflush -f m 2&gt;&amp;1 | /opt/ai-ran/bin/record-ue2-throughput
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 22" class="copy-button" data-copy="command-22" type="button">Copy</button></div><pre><code class="language-bash" id="command-22">sudo ip netns exec ue2 stdbuf -oL -eL iperf3 -s -1 -B 12.1.1.130 -p 80 -i 1 --forceflush -f m 2&gt;&amp;1 | /opt/ai-ran/bin/record-ue2-throughput
 </code></pre></div>
 <p>Both should say they are listening on port 80. The recording helpers only
 timestamp/save the output and display it; <code>iperf3</code> performs the measurement.</p>
@@ -485,7 +475,7 @@ timestamp/save the output and display it; <code>iperf3</code> performs the measu
 be more informative than the sending-rate setting?</p></aside>
 <h4 id="c-observe-upf-utilization">C. Observe UPF utilization<a aria-label="Link to section: C. Observe UPF utilization" class="heading-anchor" href="#c-observe-upf-utilization">#</a></h4>
 <p class="terminal-note">In terminal 3:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 24" class="copy-button" data-copy="command-24" type="button">Copy</button></div><pre><code class="language-bash" id="command-24">docker stats --format '{{json .}}' oai-upf-slice1 oai-upf-slice2 | /opt/ai-ran/bin/record-upf-cpu
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 23" class="copy-button" data-copy="command-23" type="button">Copy</button></div><pre><code class="language-bash" id="command-23">docker stats --format '{{json .}}' oai-upf-slice1 oai-upf-slice2 | /opt/ai-ran/bin/record-upf-cpu
 </code></pre></div>
 <p>You will see each UPF's CPU percentage and memory use. Record the idle values
 before the traffic starts. This is container CPU utilization, the resource
@@ -493,16 +483,16 @@ metric used in paper Figure 7.</p>
 <h4 id="d-start-captures-and-legitimate-traffic">D. Start captures and legitimate traffic<a aria-label="Link to section: D. Start captures and legitimate traffic" class="heading-anchor" href="#d-start-captures-and-legitimate-traffic">#</a></h4>
 <p>In terminal 4, start these two bounded captures. <code>&amp;</code> leaves them running while
 you enter the next command; the two logs retain their capture/drop counts.</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 25" class="copy-button" data-copy="command-25" type="button">Copy</button></div><pre><code class="language-bash" id="command-25">sudo timeout -s INT -k 3 95 tcpdump -i lo -n -U -w /var/tmp/ai-ran/captures/comparison/current/control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' &gt; /var/tmp/ai-ran/captures/comparison/current/capture.log 2&gt;&amp;1 &amp;
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 24" class="copy-button" data-copy="command-24" type="button">Copy</button></div><pre><code class="language-bash" id="command-24">sudo timeout -s INT -k 3 95 tcpdump -i lo -n -U -w /var/tmp/ai-ran/captures/comparison/current/control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' &gt; /var/tmp/ai-ran/captures/comparison/current/capture.log 2&gt;&amp;1 &amp;
 sudo timeout -s INT -k 3 95 tcpdump -i demo-oai -n -U -w /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' &gt; /var/tmp/ai-ran/captures/comparison/current/detector-capture.log 2&gt;&amp;1 &amp;
 </code></pre></div>
 <p>Confirm both logs show <code>listening on</code> before proceeding:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 26" class="copy-button" data-copy="command-26" type="button">Copy</button></div><pre><code class="language-bash" id="command-26">cat /var/tmp/ai-ran/captures/comparison/current/capture.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 25" class="copy-button" data-copy="command-25" type="button">Copy</button></div><pre><code class="language-bash" id="command-25">cat /var/tmp/ai-ran/captures/comparison/current/capture.log
 cat /var/tmp/ai-ran/captures/comparison/current/detector-capture.log
 </code></pre></div>
 <p>Run the following commands promptly, one by one. The first records a timestamp
 only. The next three start the actual ping and TCP traffic:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 27" class="copy-button" data-copy="command-27" type="button">Copy</button></div><pre><code class="language-bash" id="command-27">sudo /opt/ai-ran/bin/mark-traffic-start
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 26" class="copy-button" data-copy="command-26" type="button">Copy</button></div><pre><code class="language-bash" id="command-26">sudo /opt/ai-ran/bin/mark-traffic-start
 sudo ip netns exec ue2 ping -n -D -O -i 0.2 -W 1 -w 75 192.168.70.145 &gt; /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log 2&gt;&amp;1 &amp;
 sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -i 1 -J &gt; /var/tmp/ai-ran/captures/comparison/current/ue1-sender.json 2&gt;&amp;1 &amp;
 sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -i 1 -J &gt; /var/tmp/ai-ran/captures/comparison/current/ue2-sender.json 2&gt;&amp;1 &amp;
@@ -512,7 +502,7 @@ These are two <strong>downlink</strong> streams, each capped at a requested 100 
 1,200-byte application write buffers. Actual goodput may be much lower.</p>
 <aside aria-label="Observation checkpoint" class="observe"><p><strong>Observe for about 15–20 seconds:</strong> watch both receiver rates and UPF CPU.
 Read the latest classifications in terminal 4:</p></aside>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 28" class="copy-button" data-copy="command-28" type="button">Copy</button></div><pre><code class="language-bash" id="command-28">tail -n 12 /var/log/ai-ran/ads1.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 27" class="copy-button" data-copy="command-27" type="button">Copy</button></div><pre><code class="language-bash" id="command-27">tail -n 12 /var/log/ai-ran/ads1.log
 tail -n 12 /var/log/ai-ran/ads2.log
 tail -n 12 /var/log/ai-ran/xapp.log
 </code></pre></div>
@@ -520,7 +510,7 @@ tail -n 12 /var/log/ai-ran/xapp.log
 packets classified as anomalous? Do not assume the baseline must be perfect.</p>
 <h4 id="e-launch-the-attack-yourself">E. Launch the attack yourself<a aria-label="Link to section: E. Launch the attack yourself" class="heading-anchor" href="#e-launch-the-attack-yourself">#</a></h4>
 <p>In terminal 4, while the two downlinks are still running:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 29" class="copy-button" data-copy="command-29" type="button">Copy</button></div><pre><code class="language-bash" id="command-29">( sudo /opt/ai-ran/bin/mark-attack-start &amp;&amp; sudo ip netns exec ue1 timeout -s INT -k 3 25 hping3 -q -S -s 333 -k -p 333 -d 0 -i u100 -c 250000 -I oaitun_ue1 192.168.70.145 ) &gt; /var/tmp/ai-ran/captures/comparison/current/attack.log 2&gt;&amp;1 &amp;
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 28" class="copy-button" data-copy="command-28" type="button">Copy</button></div><pre><code class="language-bash" id="command-28">( sudo /opt/ai-ran/bin/mark-attack-start &amp;&amp; sudo ip netns exec ue1 timeout -s INT -k 3 25 hping3 -q -S -s 333 -k -p 333 -d 0 -i u100 -c 250000 -I oaitun_ue1 192.168.70.145 ) &gt; /var/tmp/ai-ran/captures/comparison/current/attack.log 2&gt;&amp;1 &amp;
 tail -f /var/log/ai-ran/xapp.log
 </code></pre></div>
 <p>The marker records when you initiate the attack; Hping3 generates the packets.
@@ -539,14 +529,14 @@ Does lower CPU mean protection succeeded, or could traffic have stalled?</p></as
 and run <code>wait</code> there. It waits for that terminal's bounded background jobs,
 including the 95-second captures, to finish. Press Ctrl+C in terminals 1, 2,
 and 3 if the receiver/CPU commands are still running.</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 30" class="copy-button" data-copy="command-30" type="button">Copy</button></div><pre><code class="language-bash" id="command-30">wait
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 29" class="copy-button" data-copy="command-29" type="button">Copy</button></div><pre><code class="language-bash" id="command-29">wait
 sudo /opt/ai-ran/bin/finish-trial
 </code></pre></div>
 <p>The helper saves actor logs and analyzes the recordings; it leaves the network
 running for inspection. Check its coverage/error flags. It preserves missing
 data and failed mitigation outcomes. If commands were started too late to cover
 the baseline and attack windows, report the incomplete measurement.</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 31" class="copy-button" data-copy="command-31" type="button">Copy</button></div><pre><code class="language-bash" id="command-31">cat /var/tmp/ai-ran/captures/comparison/current/attack.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 30" class="copy-button" data-copy="command-30" type="button">Copy</button></div><pre><code class="language-bash" id="command-30">cat /var/tmp/ai-ran/captures/comparison/current/attack.log
 cat /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log
 /opt/ai-ran/bin/inspect-control /var/tmp/ai-ran/captures/comparison/current/control.pcap
 less /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
@@ -564,7 +554,7 @@ framing; correlate reconstructed bytes with endpoint logs.</p>
 <p>The host and UPF containers may display different local timezones. Check them
 before aligning log clock strings; frame-relative times and packet ordering
 also help correlate the loop:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 32" class="copy-button" data-copy="command-32" type="button">Copy</button></div><pre><code class="language-bash" id="command-32">date -Is
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 31" class="copy-button" data-copy="command-31" type="button">Copy</button></div><pre><code class="language-bash" id="command-31">date -Is
 docker exec oai-upf-slice1 date -Is
 </code></pre></div>
 <p>Check endpoint state and connectivity. Look for receipt of RRC Release in the
@@ -572,7 +562,7 @@ UE1 log and removal of its context in the gNB log. If the release succeeded and
 the UE has not reconnected, UE1 should no longer deliver traffic to the DN;
 UE2 should retain connectivity. A failed ping alone cannot distinguish release
 from a zero quota or another failure, so use the endpoint logs as well:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 33" class="copy-button" data-copy="command-33" type="button">Copy</button></div><pre><code class="language-bash" id="command-33">less /var/log/ai-ran/ue1.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 32" class="copy-button" data-copy="command-32" type="button">Copy</button></div><pre><code class="language-bash" id="command-32">less /var/log/ai-ran/ue1.log
 less /var/log/ai-ran/gnb.log
 sudo ip netns exec ue1 ping -c 3 -W 1 192.168.70.145
 sudo ip netns exec ue2 ping -c 3 -W 1 192.168.70.145
@@ -725,7 +715,7 @@ window. Matching individual SYN packets does not guarantee an immediate release.
 <p>Finish the RF recording and its inspection first. Then reset the topology so
 the heuristic starts with fresh UE IDs, connections, and detector windows.
 Run these startup commands one by one in terminal 4, checking readiness each time:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 34" class="copy-button" data-copy="command-34" type="button">Copy</button></div><pre><code class="language-bash" id="command-34">sudo /opt/ai-ran/bin/stop-lab
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 33" class="copy-button" data-copy="command-33" type="button">Copy</button></div><pre><code class="language-bash" id="command-33">sudo /opt/ai-ran/bin/stop-lab
 sudo /opt/ai-ran/bin/start-core
 sudo /opt/ai-ran/bin/start-ric
 sudo /opt/ai-ran/bin/start-gnb
@@ -740,7 +730,7 @@ on the fixed measurement ports. The final command selects a new heuristic
 result directory; the RF files are preserved.</p>
 <p>Before starting the timed measurements, confirm the classifier and reporting
 mode in <strong>both</strong> detector logs:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 35" class="copy-button" data-copy="command-35" type="button">Copy</button></div><pre><code class="language-bash" id="command-35">grep -E 'TCP_FLAG_HEURISTIC|REPORT_INTERVAL_SECONDS' /var/log/ai-ran/ads1.log /var/log/ai-ran/ads2.log
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 34" class="copy-button" data-copy="command-34" type="button">Copy</button></div><pre><code class="language-bash" id="command-34">grep -E 'TCP_FLAG_HEURISTIC|REPORT_INTERVAL_SECONDS' /var/log/ai-ran/ads1.log /var/log/ai-ran/ads2.log
 </code></pre></div>
 <p>Both logs must identify <code>TCP_FLAG_HEURISTIC</code> and <code>REPORT_INTERVAL_SECONDS: 0.0</code>.
 Zero means every computed window is reported. The xApp startup and initial
@@ -776,7 +766,7 @@ it. Relate these observations to the differences from your RF run.</p></aside>
 and UE-release behavior during the attack. The comparison connects the observed
 control actions to UE2 service quality and UPF processing cost.</p>
 <p>After both runs are finished, generate the table and plots:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 36" class="copy-button" data-copy="command-36" type="button">Copy</button></div><pre><code class="language-bash" id="command-36">sudo /opt/ai-ran/bin/plot-comparison
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 35" class="copy-button" data-copy="command-35" type="button">Copy</button></div><pre><code class="language-bash" id="command-35">sudo /opt/ai-ran/bin/plot-comparison
 less /var/tmp/ai-ran/state/comparison.md
 </code></pre></div>
 <p>This command only processes saved recordings. It does not start another run.
@@ -825,13 +815,13 @@ better: relate it to useful UE2 goodput and latency. Report ties and heuristic
 wins as well as AI wins. State explicitly that this is one run per method.</p></aside>
 <h3 id="export-and-stop">Export and stop<a aria-label="Link to section: Export and stop" class="heading-anchor" href="#export-and-stop">#</a></h3>
 <p>After stopping both captures, create an evidence bundle:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 37" class="copy-button" data-copy="command-37" type="button">Copy</button></div><pre><code class="language-bash" id="command-37">sudo /opt/ai-ran/bin/export-results
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 36" class="copy-button" data-copy="command-36" type="button">Copy</button></div><pre><code class="language-bash" id="command-36">sudo /opt/ai-ran/bin/export-results
 </code></pre></div>
 <p>Run the printed <code>scp</code> command on your laptop. Use your portal's SSH hostname
 if it shows a different alias. The bundle includes captures, decoded messages,
 logs, and preparation provenance. Export it before the experiment expires.</p>
 <p>On the node:</p>
-<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 38" class="copy-button" data-copy="command-38" type="button">Copy</button></div><pre><code class="language-bash" id="command-38">sudo /opt/ai-ran/bin/stop-lab
+<div class="code-panel" data-language="bash"><div class="code-bar"><span class="code-kind">Commands</span><button aria-label="Copy command block 37" class="copy-button" data-copy="command-37" type="button">Copy</button></div><pre><code class="language-bash" id="command-37">sudo /opt/ai-ran/bin/stop-lab
 </code></pre></div>
 <p>For another release trial, repeat the staged startup from <code>start-core</code> so UE
 IDs are reset. Captures/logs are retained; a new capture with the same filename

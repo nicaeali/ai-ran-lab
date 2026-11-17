@@ -28,7 +28,7 @@ Use the profile link supplied by your instructor and reserve one Emulab d430.
 The root [`profile.py`](profile.py) selects Ubuntu 22.04 and automatically runs
 [`ai-ran/setup.sh`](ai-ran/setup.sh). Preparation installs dependencies, retrieves
 pinned source repositories under `/opt`, builds the software, and pulls the
-core images. Wait for Startup to finish and `/opt/ai-ran/READY` to exist.
+core images. Wait for the node to be **Ready** and its **Startup** state to be **Finished**.
 
 The handout uses fixed entry points in `/opt/ai-ran/bin`. Start each component
 when instructed so its initial connection is included in your packet captures.

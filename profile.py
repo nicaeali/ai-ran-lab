@@ -9,7 +9,6 @@ repositories under /opt, builds the software, and pulls the core images.
 
 Follow /opt/oai-anomaly-detection/docs/EXPLORING_AI_RAN.md.
 Setup progress: sudo tail -f /var/log/ai-ran/setup.log
-Successful preparation creates /opt/ai-ran/READY.
 
 This is a repository-based profile: the repository must contain this root
 profile.py and ai-ran/setup.sh. No radio-frequency reservation is needed.

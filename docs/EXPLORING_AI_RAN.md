@@ -64,24 +64,7 @@ At your reservation time, open the instructor-provided POWDER profile link for *
 
 Wait for the node to be **Ready** and its **Startup** state to be **Finished**. The startup service installs dependencies, places the repositories under `/opt`, and builds the software. Node allocation finishing does not mean compilation has finished.
 
-Use the portal's SSH command. Confirm preparation:
-
-```bash
-cat /opt/ai-ran/READY
-```
-
-Setup adds the node's existing regular login accounts to the `docker` group.
-If you opened an SSH session before preparation finished, disconnect and
-reconnect that session to load its new group membership. Verify Docker access:
-
-```bash
-docker info --format '{{.ServerVersion}}'
-```
-
-The lab uses fixed scripts with no student-selectable arguments. They start
-background actors and return after readiness checks. Use **three SSH sessions**:
-terminal 1 and terminal 2 for captures/logs, and terminal 3 for startup/traffic.
-Ctrl+C stops a capture or log viewer, not the background network actors.
+Open **three SSH sessions** using the portal's SSH command: terminals 1 and 2 for captures/logs, and terminal 3 for startup/traffic.
 
 ### Start the core
 
@@ -89,7 +72,6 @@ In terminal 3:
 
 ```bash
 sudo /opt/ai-ran/bin/start-core
-docker ps
 ```
 
 Expected checkpoint from the startup helper:
@@ -98,33 +80,45 @@ Expected checkpoint from the startup helper:
 READY: 12 healthy core containers
 ```
 
-Your container IDs will differ, but `docker ps` should show twelve running,
-healthy containers. The custom UPFs already contain the
-model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
-distinct slices. NSSF is deployed, but this snapshot uses direct NRF discovery
-for SMF selection in this fixed core configuration.
+List the running containers:
 
-The core separates control-plane functions from packet forwarding. Identify
-these roles in the container list:
+```bash
+docker ps
+```
+
+Example output from `docker ps`:
+
+```text
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                    PORTS                                    NAMES
+3b80e797ac5c   2d70f1399931   "/openair-upf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   2152/udp, 8805/udp, 8080/tcp             oai-upf-slice1
+d1ab08642a37   8254e9b557c4   "/openair-upf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   2152/udp, 8805/udp, 8080/tcp             oai-upf-slice2
+6587a0ae0b7c   fd533bc2c096   "/openair-smf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 8805/udp               oai-smf-slice1
+a02a730aadeb   fd533bc2c096   "/openair-smf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 8805/udp               oai-smf-slice2
+819503e4411e   7e588f0fbfa7   "/openair-amf/bin/oa…"   20 seconds ago   Up 19 seconds (healthy)   80/tcp, 8080/tcp, 9090/tcp, 38412/sctp   oai-amf
+2f7f6d6f4ca2   e4f211d9cc88   "/openair-ausf/bin/o…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-ausf
+3b6ae61f341a   5361ca3c9a5b   "/openair-udm/bin/oa…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-udm
+905a2f3d726a   53cdabbce16e   "/openair-nssf/bin/o…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-nssf
+e83254004cc4   1571393477ab   "/openair-udr/bin/oa…"   21 seconds ago   Up 20 seconds (healthy)   80/tcp, 8080/tcp                         oai-udr
+3c2924421d08   8d561faf9a13   "/openair-nrf/bin/oa…"   22 seconds ago   Up 22 seconds (healthy)   80/tcp, 8080/tcp, 9090/tcp               oai-nrf-slice12
+5f6435dd748f   3f9ab2e401d2   "/bin/bash -c ' ipta…"   23 seconds ago   Up 22 seconds (healthy)                                            oai-ext-dn
+a5e86a571a49   7dcddc01f13b   "docker-entrypoint.s…"   23 seconds ago   Up 23 seconds (healthy)   3306/tcp, 33060/tcp                      mysql
+```
+
+All twelve rows show running, healthy containers. Use `NAMES` to identify the services; `IMAGE` shows image IDs in this example. Your container IDs and elapsed times will differ. 
+
+The custom UPFs already contain the model and original anomaly-detection scripts. The core uses two SMFs/UPFs with
+distinct slices. 
+
+The core separates control-plane functions from packet forwarding. Identify these roles in the container list:
 
 | Component | Role in this experiment |
 | --- | --- |
 | AMF | Handles UE access and mobility signaling and the gNB's NGAP connection |
 | SMFs | Manage the two slices' PDU sessions and configure their UPFs |
 | UPFs | Forward user traffic; each custom container also runs a traffic detector |
-| NRF | Lets network functions register and discover other functions |
-| AUSF, UDM, UDR | Support authentication, subscriber management, and subscriber data |
-| NSSF | Deployed, but bypassed for SMF selection in this fixed configuration |
-| MySQL | Stores the supplied subscriber database |
 | External DN | Provides the data-network endpoint used by the software UEs |
 
-> **Tip:** If the readiness check fails, inspect the container logs before
-> proceeding. The [setup notes](../ai-ran/README.md) describe recovery from the
-> observed NRF startup assertion.
-
-**Lab report:** save the command/output showing core health. Identify the AMF,
-NRF, two SMFs, two UPFs, and external-DN container. State which components run
-ML inference and which will enforce RAN changes.
+**Lab report:** save the command/output showing core health. Identify the AMF, NRF, two SMFs, two UPFs, and external-DN container. State which components run ML inference and which will enforce RAN changes.
 
 ### Observe gNB–RIC attachment
 

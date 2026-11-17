@@ -292,8 +292,6 @@ def main():
         raise SystemExit("Use the fixed entry points in /opt/ai-ran/bin")
     if os.geteuid() != 0:
         raise SystemExit("Run the lab entry point with sudo")
-    if not (LAB / "READY").exists() and sys.argv[1] not in ("stop", "status"):
-        raise SystemExit("Profile preparation is incomplete; inspect /var/log/ai-ran/setup.log")
     LOGS.mkdir(parents=True, exist_ok=True)
     STATE.parent.mkdir(parents=True, exist_ok=True)
     try:

@@ -59,10 +59,10 @@ commands such as `docker ps` use the new group membership.
 | `/var/tmp/ai-ran/captures` | Packet captures and decoded messages |
 | `/var/tmp/ai-ran/exports` | Exported student evidence bundles |
 
-Preparation progress is recorded in `/var/log/ai-ran/setup.log`. Successful
-preparation creates `/opt/ai-ran/READY`; failures are recorded in
-`/var/log/ai-ran/setup-failure.txt`. Source pins and package versions are recorded
-in `/opt/ai-ran/setup-manifest.json`.
+Preparation progress is recorded in `/var/log/ai-ran/setup.log`. Wait for
+POWDER's **Startup** state to be **Finished** before starting the lab. Failures
+are recorded in `/var/log/ai-ran/setup-failure.txt`. Source pins and package
+versions are recorded in `/opt/ai-ran/setup-manifest.json`.
 
 The fixed setup uses GCC12, a pinned historical ASN.1 compiler, explicit
 dependency installation, and separate telnet libraries. The included patches
