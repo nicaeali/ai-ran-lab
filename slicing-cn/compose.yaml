@@ -1,8 +1,8 @@
-version: '3.8'
+name: slicing-cn
 services:
     mysql:
         container_name: "mysql"
-        image: mysql:8.0
+        image: mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         volumes:
             - ./database/oai_db2.sql:/docker-entrypoint-initdb.d/oai_db.sql
             - ./healthscripts/mysql-healthcheck2.sh:/tmp/mysql-healthcheck.sh
@@ -22,7 +22,7 @@ services:
                 ipv4_address: 192.168.70.131
     oai-nssf:
         container_name: "oai-nssf"
-        image: oaisoftwarealliance/oai-nssf:v2.0.1
+        image: oaisoftwarealliance/oai-nssf@sha256:53cdabbce16ee9ef5aea814088520e560a44978c065d58d5d877efec6847028e
         expose:
             - 80/tcp
             - 8080/tcp
@@ -40,46 +40,49 @@ services:
                 ipv4_address: 192.168.70.132
     oai_udr:
         container_name: "oai-udr"
-        image: oaisoftwarealliance/oai-udr:v2.0.1
+        image: oaisoftwarealliance/oai-udr@sha256:1571393477abf6241d4f2a8949cabaaadec596c2f8ff76ceba18365671652656
         expose:
             - 80/tcp
             - 8080/tcp
         volumes:
             - ./conf/slicing_base_config.yaml:/openair-udr/etc/config.yaml
         depends_on:
-            - mysql
+            mysql:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.133
     oai_udm:
         container_name: "oai-udm"
-        image: oaisoftwarealliance/oai-udm:v2.0.1
+        image: oaisoftwarealliance/oai-udm@sha256:5361ca3c9a5b1420c7d4651ed83d2d5782eba58fc7b3fde3c45761b86670acde
         expose:
             - 80/tcp
             - 8080/tcp
         volumes:
             - ./conf/slicing_base_config.yaml:/openair-udm/etc/config.yaml
         depends_on:
-            - oai_udr
+            oai_udr:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.134
     oai_ausf:
         container_name: "oai-ausf"
-        image: oaisoftwarealliance/oai-ausf:v2.0.1
+        image: oaisoftwarealliance/oai-ausf@sha256:e4f211d9cc88a53274a5c04d89315ba8c44f661de6125b27796baec964e21c2c
         expose:
             - 80/tcp
             - 8080/tcp
         volumes:
             - ./conf/slicing_base_config.yaml:/openair-ausf/etc/config.yaml
         depends_on:
-            - oai_udm
+            oai_udm:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.135
     oai_nrf_slice12:
         container_name: "oai-nrf-slice12"
-        image: oaisoftwarealliance/oai-nrf:v2.0.1
+        image: oaisoftwarealliance/oai-nrf@sha256:8d561faf9a132d4ebcdb3738a72911f6613b3daf90f284a9fa1149cc99fc63d7
         expose:
             - 80/tcp
             - 8080/tcp
@@ -90,7 +93,7 @@ services:
                 ipv4_address: 192.168.70.136
     oai_amf:
         container_name: "oai-amf"
-        image: oaisoftwarealliance/oai-amf:v2.0.1
+        image: oaisoftwarealliance/oai-amf@sha256:7e588f0fbfa723c6891f2f48da2ff09142723a97e053c415f2e6517c3d074cd9
         expose:
             - 80/tcp
             - 8080/tcp
@@ -98,8 +101,10 @@ services:
         volumes:
             - ./conf/slicing_base_config.yaml:/openair-amf/etc/config.yaml
         depends_on:
-            - oai_nrf_slice12
-            - oai_ausf
+            oai_nrf_slice12:
+                condition: service_healthy
+            oai_ausf:
+                condition: service_healthy
         extra_hosts:
             - "oai-nrf:192.168.70.136"
         networks:
@@ -107,7 +112,7 @@ services:
                 ipv4_address: 192.168.70.138
     oai_smf_slice1:
         container_name: "oai-smf-slice1"
-        image: oaisoftwarealliance/oai-smf:v2.0.1
+        image: oaisoftwarealliance/oai-smf@sha256:fd533bc2c0964fcd73e4c44f931d5a7a3673c14fd5f7f997a851f8536e3d9561
         expose:
             - 80/tcp
             - 8080/tcp
@@ -115,14 +120,16 @@ services:
         volumes:
             - ./conf/slicing_slice1_config.yaml:/openair-smf/etc/config.yaml
         depends_on:
-            - oai_amf
-            - oai_nrf_slice12
+            oai_amf:
+                condition: service_healthy
+            oai_nrf_slice12:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.139
     oai_smf_slice2:
         container_name: "oai-smf-slice2"
-        image: oaisoftwarealliance/oai-smf:v2.0.1
+        image: oaisoftwarealliance/oai-smf@sha256:fd533bc2c0964fcd73e4c44f931d5a7a3673c14fd5f7f997a851f8536e3d9561
         expose:
             - 80/tcp
             - 8080/tcp
@@ -130,14 +137,16 @@ services:
         volumes:
             - ./conf/slicing_slice2_config.yaml:/openair-smf/etc/config.yaml
         depends_on:
-            - oai_amf
-            - oai_nrf_slice12
+            oai_amf:
+                condition: service_healthy
+            oai_nrf_slice12:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.140
     oai_upf_slice1:
         container_name: "oai-upf-slice1"
-        image: ttsourdinis/custom-upf:slice1
+        image: ttsourdinis/custom-upf@sha256:2d70f13999317c3502aa968229d099772ff4307babfeda34b9f3b50568f9fbc9
         expose:
             - 2152/udp
             - 8805/udp
@@ -147,8 +156,10 @@ services:
         environment:
             - TZ=Europe/Paris
         depends_on:
-            - oai_nrf_slice12
-            - oai_smf_slice1
+            oai_nrf_slice12:
+                condition: service_healthy
+            oai_smf_slice1:
+                condition: service_healthy
         cap_add:
             - NET_ADMIN
             - SYS_ADMIN
@@ -160,7 +171,7 @@ services:
                 ipv4_address: 192.168.70.142
     oai_upf_slice2:
         container_name: "oai-upf-slice2"
-        image: ttsourdinis/custom-upf:slice2
+        image: ttsourdinis/custom-upf@sha256:8254e9b557c43c07e16a35fdd7b0b14ebd63174c867190cdf31d4cae1f959280
         expose:
             - 2152/udp
             - 8805/udp
@@ -170,8 +181,10 @@ services:
         environment:
             - TZ=Europe/Paris
         depends_on:
-            - oai_nrf_slice12
-            - oai_smf_slice2
+            oai_nrf_slice12:
+                condition: service_healthy
+            oai_smf_slice2:
+                condition: service_healthy
         cap_add:
             - NET_ADMIN
             - SYS_ADMIN
@@ -182,7 +195,7 @@ services:
             public_net:
                 ipv4_address: 192.168.70.143
     oai_ext_dn:
-        image: oaisoftwarealliance/trf-gen-cn5g:latest
+        image: oaisoftwarealliance/trf-gen-cn5g@sha256:3f9ab2e401d2a010b568e78db087b5d1526b8756f1056087939116f6138340a6
         privileged: true
         init: true
         container_name: oai-ext-dn
@@ -211,13 +224,6 @@ networks:
                 - subnet: 192.168.70.0/24
         driver_opts:
             com.docker.network.bridge.name: "demo-oai"
-    public_net_access:
-        name: oai-public-access
-        ipam:
-            config:
-                - subnet: 192.168.72.0/24
-        driver_opts:
-            com.docker.network.bridge.name: "cn5g-access"
     public_net_core:
         name: oai-public-core
         ipam:

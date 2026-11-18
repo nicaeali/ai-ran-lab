@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Decode captured E2AP/E42 and nested E2SM-RC using the pinned runtime codecs."""
 
-import json
 from pathlib import Path
 import subprocess
 import sys
@@ -37,7 +36,7 @@ def messages(path):
                     value = {"frame": frame, "time": float(packet.time) - origin,
                              "tsn": int(layer.tsn), "stream": int(layer.stream_id), "sequence": int(layer.stream_seq),
                              "unordered": int(layer.unordered), "begin": bool(layer.beginning), "end": bool(layer.ending),
-                             "ppi": int(layer.proto_id), "data": bytes(layer.data)}
+                              "data": bytes(layer.data)}
                     if value["tsn"] in chunks and chunks[value["tsn"]]["data"] != value["data"]:
                         raise ValueError("Conflicting SCTP retransmission payload")
                     chunks.setdefault(value["tsn"], value)
@@ -59,7 +58,7 @@ def messages(path):
                     incomplete.append(pending.pop(key)["frames"])
                 pending[key] = {"frames": [], "data": b"", "time": chunk["time"], "last_tsn": None,
                                 "source": f"{association[0]}:{association[1]}",
-                                "destination": f"{association[2]}:{association[3]}", "ppi": chunk["ppi"]}
+                                 "destination": f"{association[2]}:{association[3]}"}
             if key not in pending:
                 incomplete.append([chunk["frame"]])
                 continue
@@ -88,57 +87,31 @@ def name(tag):
     return tag.rsplit("}", 1)[-1].replace("-", "").replace("_", "").lower()
 
 
-def slice_values(root):
-    values = {8: [], 9: [], 12: []}
-    for item in root.iter():
-        identifier = next((c for c in item if name(c.tag) == "ranparameterid"), None)
-        if identifier is None or not identifier.text or int(identifier.text) not in values:
-            continue
-        number = int(identifier.text)
-        tag = "valueint" if number == 12 else "valueocts"
-        value = next((c for c in item.iter() if name(c.tag) == tag), None)
-        if value is not None and value.text:
-            values[number].append(int(value.text) if number == 12 else bytes.fromhex(value.text).decode("ascii"))
-    if not (len(values[8]) == len(values[9]) == len(values[12])):
-        raise ValueError("Unexpected RC parameter grouping; inspect complete XML")
-    return [{"sst": sst, "sd": sd, "dedicated_prb_ratio": quota}
-            for sst, sd, quota in zip(values[8], values[9], values[12])]
-
-
 def main():
     if len(sys.argv) != 2:
-        raise SystemExit("Usage: inspect-control CAPTURE.pcap")
+        raise SystemExit("Usage: inspect-control.py CAPTURE.pcap")
     path = Path(sys.argv[1]).resolve()
     records, incomplete = messages(path)
     details = path.with_name(path.name + ".messages.txt")
-    index = []
     with details.open("w") as handle:
         for item in records:
-            record = {k: v for k, v in item.items() if k not in ("data", "last_tsn")}
             xml = decode("ai_ran_decode_e2", item["data"])
             root = ET.fromstring(xml)
             envelope = next(iter(root))
             value = envelope.find("value")
-            record["message"] = next(iter(value)).tag if value is not None and len(value) else envelope.tag
-            record["procedure_code"] = envelope.findtext("procedureCode")
-            header = f"Frames {record['frames']}  t={record['time']:.6f}s  {record['source']} -> {record['destination']}  {record['message']}"
+            message = next(iter(value)).tag if value is not None and len(value) else envelope.tag
+            header = f"Frames {item['frames']}  t={item['time']:.6f}s  {item['source']} -> {item['destination']}  {message}"
             print(header)
             handle.write(header + "\n" + xml + "\n")
             for node in root.iter():
                 if name(node.tag) != "riccontrolmessage" or not node.text:
                     continue
                 rc_xml = decode("ai_ran_decode_rc", bytes.fromhex(node.text))
-                record["slice_requests"] = slice_values(ET.fromstring(rc_xml))
-                print("  Nominal slice requests:", json.dumps(record["slice_requests"]))
                 handle.write("Nested E2SM-RC control message:\n" + rc_xml + "\n")
-            index.append(record)
-    report = {"capture": str(path), "messages": index, "incomplete_sctp_messages": incomplete,
-              "decoder_scope": "Pinned FlexRIC E2AP v2.03 / E42 and RC v1.03; DATA chunks deduplicated by association/TSN"}
-    path.with_name(path.name + ".messages.json").write_text(json.dumps(report, indent=2) + "\n")
     print("Details:", details)
     if incomplete:
         raise SystemExit(f"Incomplete SCTP message fragments: {incomplete}; capture the full exchange")
-    if not index:
+    if not records:
         raise SystemExit("No complete E2/E42 DATA messages found on SCTP ports 36421/36422")
 
 

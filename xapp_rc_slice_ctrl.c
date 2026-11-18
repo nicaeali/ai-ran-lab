@@ -513,19 +513,6 @@ void parse_and_apply_slicing(e2_node_arr_xapp_t nodes) {
 
 
 int main(int argc, char *argv[]) {
-    // Benchmark baseline: retain detection/report handling and initial 50/50
-    // control, but disable subsequent slicing and release actions.
-    bool monitor_only = false;
-    int remaining = 1;
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--monitor-only") == 0) {
-            monitor_only = true;
-        } else {
-            argv[remaining++] = argv[i];
-        }
-    }
-    argc = remaining;
-    argv[argc] = NULL;
     int socket_desc, new_socket, c;
     struct sockaddr_in server, client;
     int opt = 1;
@@ -653,7 +640,6 @@ int main(int argc, char *argv[]) {
     }
     free_rc_ctrl_req_data(&rc_ctrl);
     puts("RC initialization completed. Starting main loop...");
-    if (monitor_only) puts("BENCHMARK MONITOR-ONLY: initial 50/50 retained; adaptive control and release disabled.");
 
     // Main loop to process messages
     while (1) {
@@ -668,11 +654,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Parse and apply slicing based on received messages
-        if (!monitor_only) {
-            parse_and_apply_slicing(nodes);
-        } else {
-            puts("BENCHMARK MONITOR-ONLY: detector report consumed without enforcement.");
-        }
+        parse_and_apply_slicing(nodes);
 
         for (int i = 0; i < MAX_CLIENTS; i++) report_ready[i] = false;
         pthread_mutex_unlock(&lock);

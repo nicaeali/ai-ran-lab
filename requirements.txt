@@ -1,0 +1,3 @@
+# Host-side packet decoding and measurement plots. Inference runs in the UPFs.
+scapy==2.5.0
+matplotlib==3.9.2
