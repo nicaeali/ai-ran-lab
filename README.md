@@ -755,24 +755,17 @@ You can now review the recorded output and discuss your observations without a r
 
 ##### E1. Preserve practice data and reset the network
 
-After completing step D and stopping its recorders, run these commands once in
-terminal 4. `rf-practice` must not already contain an earlier practice session:
+After completing step D and stopping its recorders, run these commands once in terminal 4. `rf-practice` must not already contain an earlier practice session:
 
 ```bash
 mv -T /var/tmp/ai-ran/captures/comparison/rf /var/tmp/ai-ran/captures/comparison/rf-practice
 mkdir -m 1777 /var/tmp/ai-ran/captures/comparison/rf
 ```
 
-The `current` symlink still points to `rf`, which is now empty. The practice
-recordings are preserved in `rf-practice` and are excluded from the final
-RF/heuristic comparison.
+The `current` symlink still points to `rf`, which is now empty. The practice recordings are preserved in `rf-practice` and are excluded from the final RF/heuristic comparison.
 
-In terminal 3, use [Stop the network](#stop-the-network). Then repeat the
-startup commands and readiness checks from [Start the core](#start-the-core)
-through [Connect the detectors and observe initial slice control](#connect-the-detectors-and-observe-initial-slice-control),
-using **RF detectors in both UPFs**. The connection-capture and inspection
-exercises were already completed; only restart the components and check their
-readiness here. Wait for both UE addresses and `RC initialization completed`.
+In terminal 3, use [Stop the network](#stop-the-network). Then repeat the startup commands and readiness checks from [Start the core](#start-the-core) through [Connect the detectors and observe initial slice control](#connect-the-detectors-and-observe-initial-slice-control),
+using **RF detectors in both UPFs**. The connection-capture and inspection exercises were already completed; only restart the components and check their readiness here. Wait for both UE addresses and `RC initialization completed`.
 
 This restart gives the measured run fresh UE IDs, detector windows, and quotas,
 and clears the previous connections on the fixed iperf3 ports.
