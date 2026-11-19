@@ -103,8 +103,8 @@ Next install containers, traffic tools, packet inspection, and host-side Python:
 
 ```bash
 sudo apt install docker.io docker-compose-v2 iproute2 iptables iputils-ping \
-  hping3 iperf3 tcpdump tshark curl python3-venv python3-pip util-linux
-sudo systemctl enable --now docker
+  hping3 iperf3 tcpdump tshark python3-venv util-linux
+sudo systemctl start docker
 sudo usermod -aG docker "$USER"
 ```
 
@@ -135,8 +135,9 @@ If you previously built parts of the lab as root, this ownership step also
 lets you continue from your normal account without rebuilding them.
 
 ```bash
+cd /local/repository
 python3 -m venv /opt/ai-ran/venv
-/opt/ai-ran/venv/bin/pip install -r /local/repository/requirements.txt
+/opt/ai-ran/venv/bin/pip install -r requirements.txt
 ```
 
 This environment supplies Scapy for packet analysis and Matplotlib for plots. ML inference happens in the UPFs, using the Python packages and saved model already in their images. The host environment is for observing and evaluating the live control loop.
@@ -146,27 +147,27 @@ This environment supplies Scapy for packet analysis and Matplotlib for plots. ML
 OAI generates C code from ASN.1 descriptions of signaling messages, including RRC and NGAP. Use this compiler revision so the generated code matches the OAI source. `git fetch --depth 1` downloads just the specified revision rather than the project's full history; `git checkout FETCH_HEAD` selects that revision.
 
 ```bash
-git init /opt/asn1c-src
 cd /opt/asn1c-src
+git init
 git fetch --depth 1 https://github.com/mouse07410/asn1c.git 1d155c232e56a93d31cc80a56ed242ae68a89441
 git checkout FETCH_HEAD
 autoreconf -i
 ./configure
-make -j8
+make
 sudo make install
 asn1c -version
 ```
 
-The compiler is installed at its default location, `/usr/local/bin/asn1c`, where OAI can find it. `-j8` uses eight compiler jobs to keep the build manageable.
+The compiler is installed at its default location, `/usr/local/bin/asn1c`, where OAI can find it.
 
 The SIMDe headers provide vector-instruction support used by OAI's physical layer. They support the radio signal-processing implementation:
 
 ```bash
-git init /opt/simde
 cd /opt/simde
+git init
 git fetch --depth 1 https://github.com/simd-everywhere/simde-no-tests.git 389f360a66d4a3bec62b7d71ad8be877487809ba
 git checkout FETCH_HEAD
-sudo rsync -a --exclude=.git /opt/simde/ /usr/local/include/simde/
+sudo rsync -r --exclude=.git ./ /usr/local/include/simde/
 ```
 
 ### Download FlexRIC and add the control xApp
@@ -174,8 +175,8 @@ sudo rsync -a --exclude=.git /opt/simde/ /usr/local/include/simde/
 FlexRIC implements the near-RT RIC. The C xApp receives classification counts from the two UPFs and converts them into slice-control and UE-release requests. Copying its source into FlexRIC's C examples makes it part of the native build.
 
 ```bash
-git init /opt/flexric
 cd /opt/flexric
+git init
 git fetch --depth 1 https://gitlab.eurecom.fr/mosaic5g/flexric.git 7c57a6fb5bc30fe97cdbb534957866cefa92f343
 git checkout FETCH_HEAD
 git apply /local/repository/patches/0003-flexric-register-control-before-send.patch
@@ -192,9 +193,9 @@ The patches fix control-request/acknowledgment ordering races. On a single host,
 ```bash
 cd /opt/flexric
 cmake -S . -B build -DCMAKE_C_COMPILER=gcc-12 -DXAPP_MULTILANGUAGE=OFF
-cmake --build build -j8
+cmake --build build
 sudo cmake --install build
-cp build/examples/ai-ran-lab/ai_ran_decode_e2 build/examples/ai-ran-lab/ai_ran_decode_rc /opt/ai-ran/bin/
+cp build/examples/ai-ran-lab/ai_ran_decode_* /opt/ai-ran/bin/
 ```
 
 The final command installs the two packet decoders used by `inspect-control.py`.
@@ -206,8 +207,9 @@ and saves the full details beside the PCAP in a `.messages.txt` file.
 The RC service model carries the slice-control payloads. Inspect the installed controller configuration and the two executables:
 
 ```bash
+cd /opt/flexric
 cat /usr/local/etc/flexric/flexric.conf
-ls /opt/flexric/build/examples/ric/nearRT-RIC /opt/flexric/build/examples/xApp/c/ctrl/xapp_rc_slice_ctrl
+ls build/examples/ric/nearRT-RIC build/examples/xApp/c/ctrl/xapp_rc_slice_ctrl
 ```
 
 The default RIC address is `127.0.0.1`, appropriate for these processes on one
@@ -220,12 +222,12 @@ OAI supplies the gNB that enforces radio-resource decisions and the two
 software UEs that produce user traffic. Its embedded FlexRIC source provides the gNB-side E2 agent. Initialize that submodule at the revision recorded by the selected OAI commit:
 
 ```bash
-git init /opt/openairinterface5g
 cd /opt/openairinterface5g
+git init
 git fetch --depth 1 https://gitlab.eurecom.fr/oai/openairinterface5g.git 50d33e69f0526349ef70ee5b583f099882985276
 git checkout FETCH_HEAD
-git submodule update --init --depth 1 openair2/E2AP/flexric
-git submodule status openair2/E2AP/flexric
+git submodule update --init --depth 1
+git submodule status
 git apply /local/repository/patches/0001-fix-slice-ctrl-race-and-null-rrc-ctx.patch
 ```
 
@@ -245,11 +247,11 @@ This implementation uses two control paths: E2/RC for slice quotas and a separat
 ```bash
 cd /opt/openairinterface5g
 git fetch --depth 1 https://gitlab.eurecom.fr/oai/openairinterface5g.git 243c985af86f857c28d14c2bb25e54e223b07a00
-git worktree add --detach /opt/openairinterface5g-telnet FETCH_HEAD
+git worktree add /opt/openairinterface5g-telnet FETCH_HEAD
 cd /opt/openairinterface5g-telnet
 CC=gcc-12 CXX=g++-12 cmake -S . -B build -DENABLE_TELNETSRV=ON
-cmake --build build --target generate_T -j8
-cmake --build build --target telnetsrv -j8
+cmake --build build --target generate_T
+cmake --build build --target telnetsrv
 cp build/libtelnetsrv*.so /opt/openairinterface5g/cmake_targets/ran_build/build/
 ```
 
@@ -267,6 +269,10 @@ Compose downloads the pinned images for the twelve core services. The two custom
 ## Start and observe the network
 
 Open **three SSH sessions**: terminals 1 and 2 for captures/logs, and terminal 3 for network processes. Use your normal account in all three terminals; commands that require elevated privileges include `sudo`.
+
+Run the `cd` line at the start of each block in the specified terminal. This
+keeps the shorter filenames tied to the correct directory, including after
+switching from practice to a measured run or from RF to the heuristic.
 
 Commands ending in `&` run in the background; `>` saves their output in the named log. Your SSH session creates these log files, even when the program is started with `sudo`, which is why the workspace step makes the log directory writable by your account. Keep the sessions open while their processes run. Repeat each readiness check until its expected message or address appears before moving to the next step.
 
@@ -334,7 +340,8 @@ The `>` redirection is performed by your normal SSH session before `sudo` runs t
 Start the RIC:
 
 ```bash
-sudo stdbuf -oL -eL /opt/flexric/build/examples/ric/nearRT-RIC > /var/log/ai-ran/ric.log 2>&1 &
+cd /opt/flexric/build/examples/ric
+sudo stdbuf -oL ./nearRT-RIC > /var/log/ai-ran/ric.log 2>&1 &
 ```
 
 After a moment, inspect its startup log and SCTP listeners:
@@ -347,7 +354,8 @@ sudo ss -lnp -A sctp
 The RIC is the control-plane intermediary between the xApp and the gNB's E2 agent. `stdbuf` makes log output appear promptly. Wait until its log contains `Initializing Task Manager` and `ss` shows an SCTP listener on port 36421. Repeat these checks if startup is still in progress. Before starting the gNB, capture in terminal 1:
 
 ```bash
-sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-ric.pcap 'sctp port 36421'
+cd /var/tmp/ai-ran/captures
+sudo tcpdump -i lo -w connect-ric.pcap 'sctp port 36421'
 ```
 
 Watch the RIC log in terminal 2:
@@ -360,7 +368,7 @@ Start the gNB in terminal 3:
 
 ```bash
 cd /opt/openairinterface5g/cmake_targets/ran_build/build
-sudo stdbuf -oL -eL ./nr-softmodem -O /local/repository/conf/gnb.conf --sa --rfsim -E --gNBs.[0].min_rxtxtime 6 --telnetsrv --telnetsrv.shrmod rrc > /var/log/ai-ran/gnb.log 2>&1 &
+sudo stdbuf -oL ./nr-softmodem -O /local/repository/conf/gnb.conf --sa --rfsim -E --gNBs.[0].min_rxtxtime 6 --telnetsrv --telnetsrv.shrmod rrc > /var/log/ai-ran/gnb.log 2>&1 &
 ```
 
 Check the actual gNB log in terminal 3:
@@ -372,8 +380,9 @@ grep -E 'E2 SETUP[- ]RESPONSE|libtelnetsrv_rrc.so successfully loaded' /var/log/
 Wait for both messages. The gNB starts its radio stack, connects to the core, and registers its E2 agent with the RIC. `--sa` selects standalone 5G; `--rfsim` uses simulated RF; `-E` and `min_rxtxtime 6` select this deployment's sampling and processing timing. `--telnetsrv` and `--telnetsrv.shrmod rrc` enablethe separate RRC-release endpoint. Then wait two seconds and stop the capture and live log stream with Ctrl+C in their respective terminals. Inspect the saved capture:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/connect-ric.pcap -Y sctp
-/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py /var/tmp/ai-ran/captures/connect-ric.pcap
+cd /var/tmp/ai-ran/captures
+tshark -r connect-ric.pcap -Y sctp
+/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py connect-ric.pcap
 ```
 
 Here is an example log:
@@ -406,7 +415,8 @@ signaling as the UEs attach to the network.
 Capture in terminal 1:
 
 ```bash
-sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/connect-ues.pcap 'sctp port 38412 or udp port 2152'
+cd /var/tmp/ai-ran/captures
+sudo tcpdump -i demo-oai -w connect-ues.pcap 'sctp port 38412 or udp port 2152'
 ```
 
 Each software UE needs its own network namespace. In terminal 3, create UE1's
@@ -421,7 +431,7 @@ sudo ip -n ue1 address add 10.201.1.1/24 dev v-ue1
 sudo ip -n ue1 link set v-ue1 up
 sudo ip -n ue1 link set lo up
 cd /opt/openairinterface5g/cmake_targets/ran_build/build
-sudo ip netns exec ue1 env LD_LIBRARY_PATH=. stdbuf -oL -eL ./nr-uesoftmodem --rfsimulator.serveraddr 10.201.1.100 -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa -O /local/repository/conf/ue_1.conf -E > /var/log/ai-ran/ue1.log 2>&1 &
+sudo ip netns exec ue1 env LD_LIBRARY_PATH=. stdbuf -oL ./nr-uesoftmodem --rfsimulator.serveraddr 10.201.1.100 -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa -O /local/repository/conf/ue_1.conf -E > /var/log/ai-ran/ue1.log 2>&1 &
 sudo ip -n ue1 -br address
 ```
 
@@ -443,7 +453,8 @@ sudo ip link set v-eth2 up
 sudo ip -n ue2 address add 10.202.1.2/24 dev v-ue2
 sudo ip -n ue2 link set v-ue2 up
 sudo ip -n ue2 link set lo up
-sudo ip netns exec ue2 env LD_LIBRARY_PATH=. stdbuf -oL -eL ./nr-uesoftmodem --rfsimulator.serveraddr 10.202.1.100 -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa -O /local/repository/conf/ue_2.conf -E > /var/log/ai-ran/ue2.log 2>&1 &
+cd /opt/openairinterface5g/cmake_targets/ran_build/build
+sudo ip netns exec ue2 env LD_LIBRARY_PATH=. stdbuf -oL ./nr-uesoftmodem --rfsimulator.serveraddr 10.202.1.100 -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa -O /local/repository/conf/ue_2.conf -E > /var/log/ai-ran/ue2.log 2>&1 &
 sudo ip -n ue2 -br address
 ```
 
@@ -459,7 +470,8 @@ The UE command selects the gNB's RFsim address, 106 resource blocks, numerology 
 Stop the capture with Ctrl+C. Inspect it:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/connect-ues.pcap -Y ngap
+cd /var/tmp/ai-ran/captures
+tshark -r connect-ues.pcap -Y ngap
 ```
 
 Example output (selected lines from one UE's attachment):
@@ -480,7 +492,8 @@ Here, `192.168.70.1` is the gNB and `192.168.70.138` is the AMF. These selected 
 Next, inspect the GTP-U packets carrying ICMP:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/connect-ues.pcap -Y 'gtp and icmp' -V
+cd /var/tmp/ai-ran/captures
+tshark -r connect-ues.pcap -Y 'gtp and icmp' -V
 ```
 
 Example output (selected fields from UE1's ICMP echo request):
@@ -508,13 +521,15 @@ Remember that an xApp is a control application deployed on the near-RT RIC platf
 Capture in terminal 1:
 
 ```bash
-sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/connect-xapp.pcap 'sctp port 36422'
+cd /var/tmp/ai-ran/captures
+sudo tcpdump -i lo -w connect-xapp.pcap 'sctp port 36422'
 ```
 
 Start the xApp in terminal 3:
 
 ```bash
-sudo stdbuf -oL -eL /opt/flexric/build/examples/xApp/c/ctrl/xapp_rc_slice_ctrl > /var/log/ai-ran/xapp.log 2>&1 &
+cd /opt/flexric/build/examples/xApp/c/ctrl
+sudo stdbuf -oL ./xapp_rc_slice_ctrl > /var/log/ai-ran/xapp.log 2>&1 &
 ```
 
 After a moment, read that log in terminal 3:
@@ -528,8 +543,9 @@ The xApp registers through FlexRIC's E42 interface and learns which E2 nodes it 
 After that message appears, wait another two seconds, then stop the capture with Ctrl+C in terminal 1. Inspect it:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/connect-xapp.pcap -Y sctp
-/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py /var/tmp/ai-ran/captures/connect-xapp.pcap
+cd /var/tmp/ai-ran/captures
+tshark -r connect-xapp.pcap -Y sctp
+/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py connect-xapp.pcap
 ```
 
 Example output (relevant lines from the control decoder):
@@ -550,13 +566,15 @@ The extractor produces protocol, service, TCP-flag, and byte-count features. The
 Terminal 1:
 
 ```bash
-sudo tcpdump -i lo -w /var/tmp/ai-ran/captures/detector-control.pcap 'sctp port 36421 or sctp port 36422'
+cd /var/tmp/ai-ran/captures
+sudo tcpdump -i lo -w detector-control.pcap 'sctp port 36421 or sctp port 36422'
 ```
 
 Terminal 2:
 
 ```bash
-sudo tcpdump -i demo-oai -w /var/tmp/ai-ran/captures/detector-connect.pcap 'tcp port 8080 and host 192.168.70.1'
+cd /var/tmp/ai-ran/captures
+sudo tcpdump -i demo-oai -w detector-connect.pcap 'tcp port 8080 and host 192.168.70.1'
 ```
 
 Terminal 3:
@@ -590,9 +608,10 @@ inspect `ads1.log`, `ads2.log`, and `xapp.log` for errors before retrying.
 Inspect the saved captures:
 
 ```bash
-tshark -r /var/tmp/ai-ran/captures/detector-connect.pcap -Y tcp
-/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py /var/tmp/ai-ran/captures/detector-control.pcap
-cat /var/tmp/ai-ran/captures/detector-control.pcap.messages.txt
+cd /var/tmp/ai-ran/captures
+tshark -r detector-connect.pcap -Y tcp
+/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py detector-control.pcap
+cat detector-control.pcap.messages.txt
 ```
 
 Example output (selected TCP fields; options omitted):
@@ -653,9 +672,10 @@ step E before starting that timed run.
 In terminal 4:
 
 ```bash
-mkdir /var/tmp/ai-ran/captures/comparison
-mkdir -m 1777 /var/tmp/ai-ran/captures/comparison/rf /var/tmp/ai-ran/captures/comparison/heuristic
-ln -s rf /var/tmp/ai-ran/captures/comparison/current
+cd /var/tmp/ai-ran/captures
+mkdir comparison
+mkdir -m 1777 comparison/rf comparison/heuristic
+ln -s rf comparison/current
 ```
 
 These commands create one directory per method. Initially, `current` selects
@@ -672,16 +692,23 @@ overwrite an existing recording.
 In terminal 1:
 
 ```bash
-sudo ip netns exec ue1 stdbuf -oL -eL iperf3 -s -1 -B 12.2.1.2 -p 80 -i 1 --forceflush -f m 2>&1 | python3 /local/repository/ai-ran/record.py /var/tmp/ai-ran/captures/comparison/current/ue1-receiver.jsonl
+cd /var/tmp/ai-ran/captures/comparison/current
+sudo ip netns exec ue1 iperf3 -s -1 -p 80 --forceflush -f m 2>&1 | python3 /local/repository/ai-ran/record.py ue1-receiver.jsonl
 ```
 
 In terminal 2:
 
 ```bash
-sudo ip netns exec ue2 stdbuf -oL -eL iperf3 -s -1 -B 12.1.1.130 -p 80 -i 1 --forceflush -f m 2>&1 | python3 /local/repository/ai-ran/record.py /var/tmp/ai-ran/captures/comparison/current/ue2-receiver.jsonl
+cd /var/tmp/ai-ran/captures/comparison/current
+sudo ip netns exec ue2 iperf3 -s -1 -p 80 --forceflush -f m 2>&1 | python3 /local/repository/ai-ran/record.py ue2-receiver.jsonl
 ```
 
 Both should say they are listening on port 80. `record.py` displays the original output and saves each line with its observation timestamp; `iperf3` performs the measurement. The recorder uses only Python's standard library.
+
+Each server is isolated in its UE's namespace. `-1` accepts one test,
+`--forceflush` makes the startup and interval output immediately visible, and
+`-f m` keeps all rates in Mbit/s for the analysis. The report interval defaults
+to one second.
 
 
 #### C. Observe UPF utilization
@@ -689,7 +716,8 @@ Both should say they are listening on port 80. `record.py` displays the original
 In terminal 3:
 
 ```bash
-docker stats --format '{{.Name}} {{.CPUPerc}}' oai-upf-slice1 oai-upf-slice2 | python3 /local/repository/ai-ran/record.py /var/tmp/ai-ran/captures/comparison/current/cpu.jsonl
+cd /var/tmp/ai-ran/captures/comparison/current
+docker stats --format '{{.Name}} {{.CPUPerc}}' oai-upf-slice1 oai-upf-slice2 | python3 /local/repository/ai-ran/record.py cpu.jsonl
 ```
 
 You will see each UPF's name and CPU percentage. Record the idle values
@@ -699,37 +727,50 @@ before the traffic starts. This is container CPU utilization, the resource metri
 
 Use this session to learn what the receiver, CPU, and detector outputs look like during normal traffic. Let the transfers finish without launching an attack.
 
-In terminal 4, start these two bounded captures. `&` leaves them running while you enter the next command; the two logs retain their capture/drop counts.
+In terminal 4, switch to the selected run's directory and start these captures.
+They stop after 95 seconds. `&` keeps terminal 4 available, and `2>` saves
+tcpdump's startup and capture/drop statistics for the analysis.
 
 ```bash
-sudo timeout -s INT -k 3 95 tcpdump -i lo -n -U -w /var/tmp/ai-ran/captures/comparison/current/control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' > /var/tmp/ai-ran/captures/comparison/current/capture.log 2>&1 &
-sudo timeout -s INT -k 3 95 tcpdump -i demo-oai -n -U -w /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' > /var/tmp/ai-ran/captures/comparison/current/detector-capture.log 2>&1 &
+cd /var/tmp/ai-ran/captures/comparison/current
+sudo timeout 95 tcpdump -i lo -w control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' 2> capture.log &
+sudo timeout 95 tcpdump -i demo-oai -w detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' 2> detector-capture.log &
 ```
 
 Confirm both logs show `listening on` before proceeding:
 
 ```bash
-cat /var/tmp/ai-ran/captures/comparison/current/capture.log
-cat /var/tmp/ai-ran/captures/comparison/current/detector-capture.log
+cd /var/tmp/ai-ran/captures/comparison/current
+cat capture.log detector-capture.log
 ```
 
-Run the following commands promptly, one by one. The first records a timestamp only. The next three start the actual ping and TCP traffic:
+Run the following block promptly: select the run's directory, record the start
+time, and launch the ping and two TCP senders:
 
 ```bash
-date +%s.%N > /var/tmp/ai-ran/captures/comparison/current/traffic-start.txt
-sudo ip netns exec ue2 ping -n -D -O -i 0.2 -W 1 -w 75 192.168.70.145 > /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log 2>&1 &
-sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue1-sender.json 2>&1 &
-sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue2-sender.json 2>&1 &
+cd /var/tmp/ai-ran/captures/comparison/current
+DN_PID=$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)
+date +%s.%N > traffic-start.txt
+sudo ip netns exec ue2 ping -n -D -i 0.2 -w 75 192.168.70.145 > ue2-ping.log 2>&1 &
+sudo nsenter -t "$DN_PID" -n timeout -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -J > ue1-sender.json 2>&1 &
+sudo nsenter -t "$DN_PID" -n timeout -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -J > ue2-sender.json 2>&1 &
 ```
 
 `nsenter` runs the host's iperf client in the external DN's network namespace. These are two downlink streams, each capped at a requested 100 Mbit/s, using 1,200-byte application write buffers. Actual goodput may be much lower.
 
+`DN_PID` is the running DN container's process ID. Look it up again for each
+run, as shown in the command block, because restarting the core changes it.
+
+The ports are fixed because the detector's service feature depends on them.
+`-J` saves sender results as JSON. The outer `timeout -k 3 80` stops a sender
+that stalls after UE release and forces it to exit three seconds later if
+needed. Ping's `-D` supplies timestamps, `-n` avoids DNS lookups, and `-w 75`
+ends the probe run after 75 seconds.
+
 **Observe during the 75-second practice session:** watch both receiver rates and UPF CPU. Read the latest classifications in terminal 4:
 
 ```bash
-tail -n 12 /var/log/ai-ran/ads1.log
-tail -n 12 /var/log/ai-ran/ads2.log
-tail -n 12 /var/log/ai-ran/xapp.log
+tail /var/log/ai-ran/{ads1,ads2,xapp}.log
 ```
 
 Record normal-traffic throughput, CPU, and nominal quotas. Are any legitimate packets classified as anomalous? Keep any false alarms, releases, or faults in your practice observations.
@@ -743,8 +784,9 @@ wait
 Press Ctrl+C in terminals 1, 2, and 3 if a receiver or the CPU recorder is still running. Then save the practice logs in terminal 4:
 
 ```bash
-date +%s.%N > /var/tmp/ai-ran/captures/comparison/current/end.txt
-cp /var/log/ai-ran/{gnb,ric,ue1,ue2,xapp,ads1,ads2}.log /var/tmp/ai-ran/captures/comparison/current/
+cd /var/tmp/ai-ran/captures/comparison/current
+date +%s.%N > end.txt
+cp /var/log/ai-ran/{gnb,ric,ue1,ue2,xapp,ads1,ads2}.log .
 ```
 
 You can now review the recorded output and discuss your observations without a running measurement timer.
@@ -758,8 +800,9 @@ You can now review the recorded output and discuss your observations without a r
 After completing step D and stopping its recorders, run these commands once in terminal 4. `rf-practice` must not already contain an earlier practice session:
 
 ```bash
-mv -T /var/tmp/ai-ran/captures/comparison/rf /var/tmp/ai-ran/captures/comparison/rf-practice
-mkdir -m 1777 /var/tmp/ai-ran/captures/comparison/rf
+cd /var/tmp/ai-ran/captures/comparison
+mv -T rf rf-practice
+mkdir -m 1777 rf
 ```
 
 The `current` symlink still points to `rf`, which is now empty. The practice recordings are preserved in `rf-practice` and are excluded from the final RF/heuristic comparison.
@@ -777,18 +820,21 @@ terminals 1 and 2. Wait until both show that they are listening on port 80.
 Restart the **CPU recorder** using [step C](#c-observe-upf-utilization) in terminal 3.
 These commands now write fresh files in the selected measurement directory.
 
-In terminal 4, start fresh captures:
+In terminal 4, switch to the selected run's directory again before starting
+fresh captures. This ensures the relative filenames use the new measurement
+directory rather than the earlier practice directory:
 
 ```bash
-sudo timeout -s INT -k 3 95 tcpdump -i lo -n -U -w /var/tmp/ai-ran/captures/comparison/current/control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' > /var/tmp/ai-ran/captures/comparison/current/capture.log 2>&1 &
-sudo timeout -s INT -k 3 95 tcpdump -i demo-oai -n -U -w /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' > /var/tmp/ai-ran/captures/comparison/current/detector-capture.log 2>&1 &
+cd /var/tmp/ai-ran/captures/comparison/current
+sudo timeout 95 tcpdump -i lo -w control.pcap 'sctp port 36421 or sctp port 36422 or tcp port 9090' 2> capture.log &
+sudo timeout 95 tcpdump -i demo-oai -w detector-reports.pcap 'tcp port 8080 and host 192.168.70.1' 2> detector-capture.log &
 ```
 
 Confirm that both captures are listening:
 
 ```bash
-cat /var/tmp/ai-ran/captures/comparison/current/capture.log
-cat /var/tmp/ai-ran/captures/comparison/current/detector-capture.log
+cd /var/tmp/ai-ran/captures/comparison/current
+cat capture.log detector-capture.log
 ```
 
 Start a new 75-second traffic period, including both **DN-side iperf3 senders**
@@ -796,10 +842,12 @@ and the **UE2 ping**. Starting the receivers alone does not generate downlink
 traffic. Run this block promptly in terminal 4, then continue directly to E3:
 
 ```bash
-date +%s.%N > /var/tmp/ai-ran/captures/comparison/current/traffic-start.txt
-sudo ip netns exec ue2 ping -n -D -O -i 0.2 -W 1 -w 75 192.168.70.145 > /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log 2>&1 &
-sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue1-sender.json 2>&1 &
-sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)" -n timeout -s INT -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -i 1 -J > /var/tmp/ai-ran/captures/comparison/current/ue2-sender.json 2>&1 &
+cd /var/tmp/ai-ran/captures/comparison/current
+DN_PID=$(docker inspect -f '{{.State.Pid}}' oai-ext-dn)
+date +%s.%N > traffic-start.txt
+sudo ip netns exec ue2 ping -n -D -i 0.2 -w 75 192.168.70.145 > ue2-ping.log 2>&1 &
+sudo nsenter -t "$DN_PID" -n timeout -k 3 80 iperf3 -c 12.2.1.2 -p 80 --cport 20 -b 100M -l 1200 -t 75 -J > ue1-sender.json 2>&1 &
+sudo nsenter -t "$DN_PID" -n timeout -k 3 80 iperf3 -c 12.1.1.130 -p 80 --cport 80 -b 100M -l 1200 -t 75 -J > ue2-sender.json 2>&1 &
 ```
 
 ##### E3. Launch the attack
@@ -809,7 +857,8 @@ launch the attack before the two new 75-second iperf3 transfers finish.
 The practice session's elapsed time does not count toward this baseline:
 
 ```bash
-( date +%s.%N > /var/tmp/ai-ran/captures/comparison/current/attack-start.txt && sudo ip netns exec ue1 timeout -s INT -k 3 25 hping3 -q -S -s 333 -k -p 333 -d 0 -i u100 -c 250000 -I oaitun_ue1 192.168.70.145 ) > /var/tmp/ai-ran/captures/comparison/current/attack.log 2>&1 &
+cd /var/tmp/ai-ran/captures/comparison/current
+( date +%s.%N > attack-start.txt && sudo ip netns exec ue1 timeout 25 hping3 -q -S -s 333 -k -p 333 -i u100 -I oaitun_ue1 192.168.70.145 ) > attack.log 2>&1 &
 tail -f /var/log/ai-ran/xapp.log
 ```
 
@@ -818,6 +867,11 @@ This is the lab's adapted zero-payload SYN workload, not a literal repository
 README attack command. Both methods use these same flags and destination.
 Requested rate is 10,000 packets/s; achieved rate can differ. Exit 124 from
 the timeout wrapper is expected.
+
+Hping3 uses a zero-byte payload by default. `-S` sends SYN packets, `-s 333`
+and `-p 333` set the ports, and Hping3's `-k` keeps its source port fixed.
+`-i u100` sets a 100-microsecond sending interval; `-I` selects the UE's data
+interface. `-q` suppresses per-reply output, and `timeout 25` bounds the attack.
 
 **Observe during the attack:** compare the two receiver rates, UPF CPU, and
 xApp messages. Look for quota changes and a release request. UE1 still has its
@@ -836,8 +890,9 @@ and 3 if the receiver/CPU commands are still running.
 
 ```bash
 wait
-date +%s.%N > /var/tmp/ai-ran/captures/comparison/current/end.txt
-cp /var/log/ai-ran/{gnb,ric,ue1,ue2,xapp,ads1,ads2}.log /var/tmp/ai-ran/captures/comparison/current/
+cd /var/tmp/ai-ran/captures/comparison/current
+date +%s.%N > end.txt
+cp /var/log/ai-ran/{gnb,ric,ue1,ue2,xapp,ads1,ads2}.log .
 ```
 
 These commands mark the recording's end and save the actor logs before the
@@ -847,13 +902,13 @@ and recorded faults. Report incomplete measurements and failed mitigation
 outcomes as well as successful ones.
 
 ```bash
-cat /var/tmp/ai-ran/captures/comparison/current/attack.log
-cat /var/tmp/ai-ran/captures/comparison/current/ue2-ping.log
-/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py /var/tmp/ai-ran/captures/comparison/current/control.pcap
-cat /var/tmp/ai-ran/captures/comparison/current/control.pcap.messages.txt
-tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,0
-tshark -r /var/tmp/ai-ran/captures/comparison/current/detector-reports.pcap -q -z follow,tcp,ascii,1
-tshark -r /var/tmp/ai-ran/captures/comparison/current/control.pcap -q -z follow,tcp,ascii,0
+cd /var/tmp/ai-ran/captures/comparison/current
+cat attack.log ue2-ping.log
+/opt/ai-ran/venv/bin/python /local/repository/ai-ran/inspect-control.py control.pcap
+cat control.pcap.messages.txt
+tshark -r detector-reports.pcap -q -z follow,tcp,ascii,0
+tshark -r detector-reports.pcap -q -z follow,tcp,ascii,1
+tshark -r control.pcap -q -z follow,tcp,ascii,0
 ```
 
 Identify the detector stream order by endpoint and SST/SD. If no release request
@@ -881,7 +936,7 @@ UE2 should retain connectivity. A failed ping alone cannot distinguish release
 from a zero quota or another failure, so use the endpoint logs as well:
 
 ```bash
-grep -nEi 'release|remov|reestablish|reconnect|error|fail|assert|fatal|segmentation' /var/log/ai-ran/ue1.log /var/log/ai-ran/ue2.log /var/log/ai-ran/gnb.log
+grep -nEi 'release|remov|reestablish|reconnect|error|fail|assert|fatal|segmentation' /var/log/ai-ran/{ue1,ue2,gnb}.log
 sudo ip netns exec ue1 ping -c 3 -W 1 192.168.70.145
 sudo ip netns exec ue2 ping -c 3 -W 1 192.168.70.145
 ```
@@ -1008,7 +1063,8 @@ grep 'RC initialization completed' /var/log/ai-ran/xapp.log
 Wait for initialization, then select the heuristic directory in terminal 4:
 
 ```bash
-ln -sfn heuristic /var/tmp/ai-ran/captures/comparison/current
+cd /var/tmp/ai-ran/captures/comparison
+ln -sfn heuristic current
 ```
 
 The RF files are preserved. The `current` symlink now selects the heuristic run.
@@ -1017,7 +1073,7 @@ Before starting the timed measurements, confirm the classifier and reporting
 mode in **both** detector logs:
 
 ```bash
-grep -E 'TCP_FLAG_HEURISTIC|REPORT_INTERVAL_SECONDS' /var/log/ai-ran/ads1.log /var/log/ai-ran/ads2.log
+grep -E 'TCP_FLAG_HEURISTIC|REPORT_INTERVAL_SECONDS' /var/log/ai-ran/ads{1,2}.log
 ```
 
 Both logs must identify `TCP_FLAG_HEURISTIC` and `REPORT_INTERVAL_SECONDS: 0.0`.
@@ -1068,8 +1124,9 @@ control actions to UE2 service quality and UPF processing cost.
 After both runs are finished, generate the table and plots, then print the summary:
 
 ```bash
-/opt/ai-ran/venv/bin/python /local/repository/ai-ran/analyze.py /var/tmp/ai-ran/captures/comparison
-cat /var/tmp/ai-ran/captures/comparison/comparison.md
+cd /var/tmp/ai-ran/captures/comparison
+/opt/ai-ran/venv/bin/python /local/repository/ai-ran/analyze.py .
+cat comparison.md
 ```
 
 The script reads only the completed `rf/` and `heuristic/` recordings;
@@ -1131,7 +1188,7 @@ In terminal 3:
 sudo ip netns pids ue1 | xargs -r sudo kill
 sudo ip netns pids ue2 | xargs -r sudo kill
 sudo pkill -INT -x nr-softmodem
-sudo pkill -INT -f '^/opt/flexric/build/examples/xApp/c/ctrl/xapp_rc_slice_ctrl( |$)'
+sudo pkill -INT -f '(^|/)xapp_rc_slice_ctrl( |$)'
 sudo pkill -INT -x nearRT-RIC
 cd /local/repository/slicing-cn
 docker compose down
@@ -1225,8 +1282,8 @@ finish the current measurement and stop the network, then update
 - **gNB/UE/core configuration:** restart the affected network components.
 - **Heuristic:** copy the edited file into fresh UPFs when starting the next run.
 - **xApp C source:** copy it into `/opt/flexric/examples/xApp/c/ctrl/` again and run
-  `cmake --build /opt/flexric/build -j8`.
-- **Host Python requirements:** repeat the `pip install -r` command.
+  `cmake --build /opt/flexric/build`.
+- **Host Python requirements:** repeat the virtual environment's `pip install -r requirements.txt` command from `/local/repository`.
 
 The running node stays allocated throughout this work. The fresh-build commands
 above use standard installation paths; an older automatically prepared node used
