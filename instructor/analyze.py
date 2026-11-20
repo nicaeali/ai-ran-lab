@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
-"""Compare one RF run and one heuristic run from the README's recordings."""
+"""Instructor tool: compare recorded runs of the lab (no defense, Random Forest, heuristic).
+
+Students do not run this. It needs more than the lab asks students to save. Run the
+lab's measurement commands as usual, with these differences:
+
+  - pipe the receivers and docker stats through record.py, which adds a timestamp:
+      iperf3 -s ... 2>&1 | python3 record.py ue1-receiver.jsonl   (and ue2-receiver.jsonl)
+      docker stats --format '{{.Name}} {{.CPUPerc}}' oai-upf-slice1 oai-upf-slice2 | python3 record.py cpu.jsonl
+  - save `date +%s.%N` to traffic-start.txt when the traffic starts, attack-start.txt
+    when the attack starts, and end.txt when it ends
+  - save the senders' output with `iperf3 -J` as ue1-sender.json and ue2-sender.json,
+    run ping with -D, and save tcpdump's messages with 2> capture.log and
+    2> detector-capture.log
+
+Usage: analyze.py COMPARISON_DIRECTORY   (folders no-defense, rf, heuristic inside it)
+Needs the packages in requirements.txt.
+"""
 
 import fcntl
 import json
@@ -15,7 +31,8 @@ import matplotlib.pyplot as plt
 from scapy.all import IP, TCP, PcapReader
 
 
-LABELS = {"rf": "Random Forest", "heuristic": "Heuristic"}
+LABELS = {"no-defense": "No defense", "rf": "Random Forest", "heuristic": "Heuristic"}
+DETECTORS = ("rf", "heuristic")
 COLORS = ("#D55E00", "#0072B2")
 
 
@@ -113,13 +130,14 @@ def summarize(folder):
         sender = (folder / f"ue{n}-sender.json").read_text()
         if "Address already in use" in sender or "unable to connect" in sender:
             issues.append(f"UE{n}: sender connection failed")
-        detector = (folder / f"ads{n}.log").read_text()
-        if ("TCP_FLAG_HEURISTIC:" in detector) != (folder.name == "heuristic"):
-            raise ValueError(f"{folder.name}: detector {n} does not match the run's label")
+        if folder.name in DETECTORS:
+            detector = (folder / f"ads{n}.log").read_text()
+            if ("TCP_FLAG_HEURISTIC:" in detector) != (folder.name == "heuristic"):
+                raise ValueError(f"{folder.name}: detector {n} does not match the run's label")
     for name in ("capture.log", "detector-capture.log"):
         if not re.search(r"^0 packets dropped by kernel$", (folder / name).read_text(), re.M):
             issues.append(name + ": capture incomplete or packets dropped")
-    for name in ("gnb", "ric", "ue1", "ue2", "xapp", "ads1", "ads2"):
+    for name in ("gnb", "ue1", "ue2") + (("xapp", "ads1", "ads2") if folder.name in DETECTORS else ()):
         text = (folder / (name + ".log")).read_text(errors="replace")
         if re.search(r"Assertion .*failed|Segmentation fault|Error sending message to server|free\(\): invalid pointer|double free|corrupted size", text):
             issues.append(name + ": runtime fault; inspect log")
@@ -152,7 +170,8 @@ def plots(trials, folder):
     limits = (-12, max(t["duration"] - t["attack_start"] for t in trials))
     for kind, ylabel in (("throughput", "Receiver goodput (Mbit/s)"),
                          ("cpu", "UPF CPU (% of one logical CPU)"), ("latency", "UE2 RTT (ms)")):
-        fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharex=True, sharey=True)
+        fig, axes = plt.subplots(1, len(trials), figsize=(6 * len(trials), 4), sharex=True, sharey=True, squeeze=False)
+        axes = axes[0]
         for ax, trial in zip(axes, trials):
             shift = trial["attack_start"]
             if kind == "latency":
@@ -183,7 +202,7 @@ def plots(trials, folder):
 
 def report(trials, folder):
     fmt = lambda value: "NA" if value is None else f"{value:.2f}"
-    text = ["# RF and heuristic: one run each", "",
+    text = ["# One run of each condition", "",
             "Baseline: 10 seconds before each attack marker. Impact: the following 25 seconds.",
             "Ping loss covers the whole run; RTT uses received replies. Missing data is not zero.", "",
             "| Method / phase | UE2 Mbit/s | UE2 RTT ms | UPF1 CPU % | UPF2 CPU % |",
@@ -201,7 +220,7 @@ def report(trials, folder):
         if not trial["release_commands"]:
             text.append("No release request captured.")
         text += ["- " + issue for issue in trial["issues"]] or ["Coverage and recorded runtime checks passed."]
-    text += ["", "A release request is not completed RRC release or inference latency. One run per method does not establish general superiority.",
+    text += ["", "A release request is not completed RRC release or inference latency. One run per condition does not establish general superiority.",
              "CPU includes forwarding and detection; 100% is one busy logical CPU. Inspect summary.json for coverage and raw logs for outcomes."]
     for name in ("throughput", "latency", "cpu"):
         text += ["", f"![{name}]({name}.png)"]
@@ -212,7 +231,8 @@ def main():
     if len(sys.argv) != 2:
         raise SystemExit("Usage: analyze.py COMPARISON_DIRECTORY")
     folder = Path(sys.argv[1])
-    trials = [summarize(folder / method) for method in ("rf", "heuristic")]
+    methods = [m for m in ("no-defense", "rf", "heuristic") if m in DETECTORS or (folder / m / "end.txt").exists()]
+    trials = [summarize(folder / method) for method in methods]
     plots(trials, folder)
     report(trials, folder)
     print("Results:", folder / "comparison.md")

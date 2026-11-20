@@ -513,6 +513,9 @@ void parse_and_apply_slicing(e2_node_arr_xapp_t nodes) {
 
 
 int main(int argc, char *argv[]) {
+  // Write each output line as soon as it is complete, even when the output is
+  // piped to another program such as tee.
+  setvbuf(stdout, NULL, _IOLBF, 0);
     int socket_desc, new_socket, c;
     struct sockaddr_in server, client;
     int opt = 1;
